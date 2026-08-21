@@ -1,0 +1,48 @@
+#!/usr/bin/env ruby
+
+require "pathname"
+
+root = Pathname.new(__dir__).join("..").expand_path
+name = ARGV.fetch(0) do
+  abort "Usage: bin/rename_app PROJECT_NAME"
+end
+
+unless name.match?(/\A[a-z][a-z0-9_]*\z/)
+  abort "PROJECT_NAME must use snake_case, for example: travel_manager"
+end
+
+class_name = name.split("_").map(&:capitalize).join
+title = name.split("_").map(&:capitalize).join(" ")
+uppercase_name = name.upcase
+
+replacements = {
+  "TOURPLAN" => uppercase_name,
+  "Tourplan" => class_name,
+  "tourplan" => name
+}
+
+paths = %w[
+  Dockerfile README.md app config db frontend/src frontend/package.json
+]
+
+files = paths.flat_map do |path|
+  candidate = root.join(path)
+  candidate.directory? ? candidate.glob("**/*").select(&:file?) : [candidate]
+end
+
+files.each do |file|
+  next unless file.exist?
+
+  content = file.binread
+  next unless content.valid_encoding?
+
+  updated = replacements.reduce(content) { |text, (from, to)| text.gsub(from, to) }
+  file.binwrite(updated) if updated != content
+end
+
+package_path = root.join("frontend/package.json")
+package = package_path.read.sub('"name": "frontend"', %("name": "#{name}-frontend"))
+package_path.write(package)
+
+puts "Renamed application to #{title} (#{class_name})"
+puts "Database prefix: #{name}"

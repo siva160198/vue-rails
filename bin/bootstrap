@@ -1,0 +1,51 @@
+#!/usr/bin/env ruby
+
+require "fileutils"
+require "securerandom"
+
+root = File.expand_path("..", __dir__)
+name = ARGV.find { |argument| !argument.start_with?("--") }
+abort "Usage: bin/bootstrap PROJECT_NAME [--skip-server]" unless name
+
+def system!(*command, env: {})
+  system(env, *command, exception: true)
+end
+
+FileUtils.chdir(root) do
+  if File.read("config/application.rb").include?("module Tourplan")
+    system!("bin/rename_app", name)
+  else
+    puts "Application was already renamed; keeping its current name."
+  end
+
+  puts "\n== Installing Ruby dependencies =="
+  system("bundle check") || system!("bundle", "install")
+
+  puts "\n== Installing frontend dependencies =="
+  system!("npm", "install", "--prefix", "frontend")
+
+  puts "\n== Preparing PostgreSQL databases =="
+  system!("bin/rails", "db:prepare")
+
+  admin_email = "admin@#{name}.local"
+  admin_password = SecureRandom.alphanumeric(24)
+
+  puts "\n== Creating development administrator =="
+  system!(
+    "bin/rails", "db:seed",
+    env: { "ADMIN_EMAIL" => admin_email, "ADMIN_PASSWORD" => admin_password }
+  )
+
+  puts <<~SUMMARY
+
+    Setup complete.
+
+    Admin URL:      http://localhost:5173/login
+    Admin email:    #{admin_email}
+    Admin password: #{admin_password}
+
+    Save this password now; it is not written to the repository.
+  SUMMARY
+
+  exec("bin/dev") unless ARGV.include?("--skip-server")
+end

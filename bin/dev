@@ -1,0 +1,11 @@
+#!/usr/bin/env ruby
+
+processes = [
+  spawn("./bin/rails", "server", "-p", "3000"),
+  spawn("npm", "--prefix", "frontend", "run", "dev")
+]
+
+Signal.trap("INT") { processes.each { |pid| Process.kill("INT", pid) rescue nil } }
+Signal.trap("TERM") { processes.each { |pid| Process.kill("TERM", pid) rescue nil } }
+
+Process.waitall

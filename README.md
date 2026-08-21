@@ -1,0 +1,108 @@
+# Vue Rails Starter
+
+Reusable full-stack starter for applications that need a Rails JSON API,
+Vue frontend, PostgreSQL, authentication, authorization, and an admin panel.
+
+## Included stack
+
+- Vue 3, Vite, Vue Router
+- Tailwind CSS 4
+- TailAdmin-style responsive admin dashboard
+- Ruby on Rails 8 JSON/REST API
+- PostgreSQL
+- Rails native session authentication with CSRF protection
+- Pundit authorization with `admin` and `member` roles
+- CORS configuration and Vite development proxy
+- Minitest coverage for login and admin authorization
+
+## Create a project
+
+Use GitHub's **Use this template** button, or clone the repository:
+
+```sh
+git clone https://github.com/siva160198/vue-rails.git my_project
+cd my_project
+bin/bootstrap my_project
+```
+
+`bin/bootstrap` will:
+
+1. Rename the Rails application and database configuration.
+2. Install Ruby and frontend dependencies.
+3. Create and prepare the PostgreSQL development/test databases.
+4. Generate a random development admin password.
+5. Start Rails on port 3000 and Vite on port 5173.
+
+Use snake_case for the project name. To prepare without starting servers:
+
+```sh
+bin/bootstrap my_project --skip-server
+```
+
+## Requirements
+
+- Ruby 4.0.6 through rbenv
+- Node.js 20.19 or newer; Node 22 recommended
+- PostgreSQL 17 or compatible
+
+On macOS with Homebrew:
+
+```sh
+brew install rbenv postgresql@17
+brew services start postgresql@17
+```
+
+Install the Ruby version if it is not available:
+
+```sh
+rbenv install 4.0.6
+```
+
+## Daily development
+
+After the first bootstrap, run both applications with:
+
+```sh
+bin/dev
+```
+
+- Frontend: http://localhost:5173
+- Rails API: http://localhost:3000/api/v1/status
+- Admin login: http://localhost:5173/login
+
+For dependency and database maintenance without renaming the application:
+
+```sh
+bin/setup --skip-server
+```
+
+## Development admin
+
+The bootstrap command prints a randomly generated admin password. It is never
+stored in Git. To create or promote a known development administrator later:
+
+```sh
+ADMIN_EMAIL=admin@example.test ADMIN_PASSWORD='your-secure-password' bin/rails db:seed
+```
+
+The seed only creates this account in the development environment.
+
+## Production configuration
+
+Provide the renamed database password environment variable and Rails master
+key through your deployment platform. Never commit `.env`, `config/master.key`,
+or encrypted credentials generated for a specific deployed application.
+
+## Verification
+
+```sh
+bin/rails test
+npm run build --prefix frontend
+bin/rubocop
+```
+
+## Template maintenance
+
+Keep this repository generic. Add reusable infrastructure and UI components
+here, but add business-specific models, migrations, and credentials only after
+creating a project from the template.
