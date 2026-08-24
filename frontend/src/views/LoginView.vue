@@ -96,7 +96,7 @@ function restartLogin() {
       </div>
       <p v-if="error" class="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{{ error }}</p>
       <p v-if="notice" class="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ notice }}</p>
-      <button :disabled="loading" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60">{{ loading ? 'Memproses…' : challengeToken ? 'Verifikasi dan masuk' : 'Kirim kode OTP' }}</button>
+      <button :disabled="loading" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60">{{ loading ? 'Memproses…' : challengeToken ? 'Verifikasi' : 'Login' }}</button>
       <div v-if="challengeToken" class="mt-5 flex items-center justify-between text-sm">
         <button type="button" :disabled="loading" class="font-medium text-slate-500 hover:text-slate-900 disabled:opacity-50" @click="restartLogin">Kembali</button>
         <button type="button" :disabled="loading" class="font-semibold text-emerald-600 hover:text-emerald-700 disabled:opacity-50" @click="resendOtp">Kirim ulang OTP</button>
