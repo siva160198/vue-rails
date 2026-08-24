@@ -11,7 +11,7 @@ const code = ref('')
 const challengeToken = ref('')
 const emailHint = ref('')
 const error = ref('')
-const notice = ref('')
+const notice = ref(route.query.reset === 'success' ? 'Password berhasil diperbarui. Silakan login.' : '')
 const loading = ref(false)
 
 async function login() {
@@ -89,7 +89,7 @@ function restartLogin() {
       </p>
       <div v-if="!challengeToken" class="mt-8 space-y-5">
         <label class="block text-sm font-medium">Email<input v-model="email" type="email" autocomplete="email" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
-        <label class="block text-sm font-medium">Password<input v-model="password" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
+        <label class="block text-sm font-medium">Password<input v-model="password" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /><RouterLink to="/forgot-password" class="mt-2 block text-right text-xs font-semibold text-emerald-600 hover:text-emerald-700">Lupa kata sandi?</RouterLink></label>
       </div>
       <div v-else class="mt-8">
         <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-bold tracking-[0.45em] outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>

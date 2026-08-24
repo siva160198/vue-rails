@@ -1,6 +1,7 @@
 class PasswordsMailer < ApplicationMailer
-  def reset(user)
+  def reset(user, code)
     @user = user
-    mail subject: "Reset your password", to: user.email_address
+    @code = code
+    mail subject: "Kode reset password Anda", to: user.email_address
   end
 end

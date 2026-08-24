@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from './views/HomeView.vue'
 import LoginView from './views/LoginView.vue'
+import ForgotPasswordView from './views/ForgotPasswordView.vue'
 import RegisterView from './views/RegisterView.vue'
 import AdminView from './views/AdminView.vue'
 import { currentUser } from './services/api'
@@ -10,6 +11,7 @@ const router = createRouter({
   routes: [
     { path: '/', component: HomeView },
     { path: '/login', component: LoginView },
+    { path: '/forgot-password', component: ForgotPasswordView },
     { path: '/register', component: RegisterView },
     { path: '/admin', component: AdminView, meta: { requiresAdmin: true, layout: 'admin' } },
   ],

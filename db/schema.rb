@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -24,6 +24,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_000000) do
     t.bigint "user_id", null: false
     t.index ["expires_at"], name: "index_login_challenges_on_expires_at"
     t.index ["user_id"], name: "index_login_challenges_on_user_id"
+  end
+
+  create_table "password_reset_challenges", force: :cascade do |t|
+    t.integer "attempts_count", default: 0, null: false
+    t.string "code_digest", null: false
+    t.datetime "consumed_at"
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["expires_at"], name: "index_password_reset_challenges_on_expires_at"
+    t.index ["user_id"], name: "index_password_reset_challenges_on_user_id"
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -46,5 +58,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_000000) do
   end
 
   add_foreign_key "login_challenges", "users"
+  add_foreign_key "password_reset_challenges", "users"
   add_foreign_key "sessions", "users"
 end

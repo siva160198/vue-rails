@@ -119,6 +119,14 @@ characters, and must verify their email with OTP before a session is created.
 Administrator accounts are created or promoted separately through trusted
 server-side operations such as the development seed.
 
+## Password recovery
+
+The login page links to `http://localhost:5173/forgot-password`. Password
+recovery sends a separate six-digit OTP that expires after ten minutes. A
+successful reset revokes all existing sessions for the account. Development
+reset emails appear in `http://localhost:3000/letter_opener` alongside login and
+registration OTP messages.
+
 ## Production configuration
 
 Provide the renamed database password environment variable and Rails master
