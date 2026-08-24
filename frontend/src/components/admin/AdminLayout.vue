@@ -43,43 +43,43 @@ function toggleDesktopSidebar() {
   <div class="min-h-screen bg-gray-50 font-outfit dark:bg-gray-900">
     <div v-if="sidebarOpen" class="fixed inset-0 z-40 bg-gray-900/50 lg:hidden" @click="sidebarOpen = false"></div>
 
-    <aside :class="[sidebarOpen ? 'translate-x-0' : '-translate-x-full', desktopSidebarOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full']" class="fixed inset-y-0 left-0 z-50 flex w-[290px] flex-col border-r border-gray-200 bg-white px-5 transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900">
+    <aside :class="[sidebarOpen ? 'translate-x-0' : '-translate-x-full', desktopSidebarOpen ? 'lg:w-[290px] lg:px-5' : 'lg:w-[90px] lg:px-3']" class="fixed inset-y-0 left-0 z-50 flex w-[290px] flex-col border-r border-gray-200 bg-white px-5 transition-[width,transform,padding] duration-300 dark:border-gray-800 dark:bg-gray-900 lg:translate-x-0">
       <div class="flex h-20 items-center justify-between px-2">
-        <RouterLink to="/admin" class="flex items-center gap-3">
+        <RouterLink to="/admin" :class="desktopSidebarOpen ? '' : 'lg:mx-auto'" class="flex items-center gap-3">
           <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white"><Compass :size="22" /></span>
-          <span><strong class="block text-xl text-gray-900 dark:text-white">Tourplan</strong><small class="text-gray-400">Admin console</small></span>
+          <span :class="desktopSidebarOpen ? '' : 'lg:hidden'"><strong class="block text-xl text-gray-900 dark:text-white">Tourplan</strong><small class="text-gray-400">Admin console</small></span>
         </RouterLink>
         <button class="text-gray-500 lg:hidden" @click="sidebarOpen = false"><X :size="22" /></button>
       </div>
 
       <nav class="mt-6 flex-1 overflow-y-auto">
-        <p class="mb-4 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Menu</p>
+        <p :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="mb-4 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Menu</p>
         <ul class="space-y-2">
           <li v-for="item in navigation" :key="item.label">
-            <button :class="item.active ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium">
-              <component :is="item.icon" :size="20" /><span>{{ item.label }}</span>
-              <span v-if="!item.active" class="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800">Soon</span>
+            <button :title="desktopSidebarOpen ? undefined : item.label" :class="[item.active ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5', desktopSidebarOpen ? '' : 'lg:justify-center']" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium">
+              <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span>
+              <span v-if="!item.active" :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800">Soon</span>
             </button>
           </li>
         </ul>
-        <p class="mb-4 mt-8 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Support</p>
+        <p :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="mb-4 mt-8 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Support</p>
         <ul class="space-y-2">
-          <li><button class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"><Settings :size="20" />Settings</button></li>
-          <li><button class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"><CircleHelp :size="20" />Help center</button></li>
+          <li><button title="Settings" :class="desktopSidebarOpen ? '' : 'lg:justify-center'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"><Settings :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">Settings</span></button></li>
+          <li><button title="Help center" :class="desktopSidebarOpen ? '' : 'lg:justify-center'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"><CircleHelp :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">Help center</span></button></li>
         </ul>
       </nav>
 
-      <div class="mb-6 rounded-2xl bg-gray-50 p-4 dark:bg-white/5">
-        <p class="text-sm font-semibold text-gray-900 dark:text-white">Tourplan API</p>
-        <div class="mt-2 flex items-center gap-2 text-xs text-gray-500"><span class="h-2 w-2 rounded-full bg-success-500"></span>All systems operational</div>
+      <div :class="desktopSidebarOpen ? 'p-4' : 'lg:flex lg:justify-center lg:p-3'" class="mb-6 rounded-2xl bg-gray-50 dark:bg-white/5">
+        <div :class="desktopSidebarOpen ? '' : 'lg:hidden'"><p class="text-sm font-semibold text-gray-900 dark:text-white">Tourplan API</p><div class="mt-2 flex items-center gap-2 text-xs text-gray-500"><span class="h-2 w-2 rounded-full bg-success-500"></span>All systems operational</div></div>
+        <span v-if="!desktopSidebarOpen" class="hidden h-3 w-3 rounded-full bg-success-500 ring-4 ring-success-50 dark:ring-success-500/10 lg:block" title="All systems operational"></span>
       </div>
     </aside>
 
-    <div :class="desktopSidebarOpen ? 'lg:pl-[290px]' : 'lg:pl-0'" class="transition-[padding] duration-300">
+    <div :class="desktopSidebarOpen ? 'lg:pl-[290px]' : 'lg:pl-[90px]'" class="transition-[padding] duration-300">
       <header class="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
         <div class="flex items-center gap-3">
           <button class="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 dark:border-gray-800 lg:hidden" @click="sidebarOpen = true"><Menu :size="20" /></button>
-          <button :aria-label="desktopSidebarOpen ? 'Sembunyikan sidebar' : 'Tampilkan sidebar'" :title="desktopSidebarOpen ? 'Sembunyikan sidebar' : 'Tampilkan sidebar'" class="hidden h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800 lg:flex" @click="toggleDesktopSidebar">
+          <button :aria-label="desktopSidebarOpen ? 'Kecilkan sidebar' : 'Lebarkan sidebar'" :title="desktopSidebarOpen ? 'Kecilkan sidebar' : 'Lebarkan sidebar'" class="hidden h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800 lg:flex" @click="toggleDesktopSidebar">
             <PanelLeftClose v-if="desktopSidebarOpen" :size="20" />
             <PanelLeftOpen v-else :size="20" />
           </button>
