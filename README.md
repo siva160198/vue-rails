@@ -92,9 +92,10 @@ The seed only creates this account in the development environment.
 ## Email OTP
 
 Login requires a six-digit email OTP after the password is accepted. In
-development, outgoing messages are saved under `tmp/mails` so the flow can be
-tested without an email provider. The OTP expires after five minutes, is
-single-use, and is locked after five failed attempts.
+development, outgoing messages can be opened at
+`http://localhost:3000/letter_opener` without an email provider. This inbox is
+only mounted in development. The OTP expires after five minutes, is single-use,
+and is locked after five failed attempts.
 
 For production, configure an SMTP provider with:
 
