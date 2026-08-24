@@ -22,7 +22,7 @@ replacements = {
 }
 
 paths = %w[
-  Dockerfile README.md app config db frontend/src frontend/package.json
+  AGENTS.md Dockerfile README.md app config db frontend/src frontend/package.json
 ]
 
 files = paths.flat_map do |path|
