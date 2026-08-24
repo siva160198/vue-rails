@@ -101,6 +101,7 @@ function restartLogin() {
         <button type="button" :disabled="loading" class="font-medium text-slate-500 hover:text-slate-900 disabled:opacity-50" @click="restartLogin">Kembali</button>
         <button type="button" :disabled="loading" class="font-semibold text-emerald-600 hover:text-emerald-700 disabled:opacity-50" @click="resendOtp">Kirim ulang OTP</button>
       </div>
+      <p v-else class="mt-5 text-center text-sm text-slate-500">Belum punya akun? <RouterLink to="/register" class="font-semibold text-emerald-600 hover:text-emerald-700">Daftar sebagai member</RouterLink></p>
     </form>
   </main>
 </template>

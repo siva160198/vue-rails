@@ -27,6 +27,7 @@ module Api
 
         case challenge.verify(params[:code])
         when :verified
+          challenge.user.update!(email_verified_at: Time.current) unless challenge.user.email_verified?
           start_new_session_for(challenge.user)
           render json: { user: user_json(challenge.user) }, status: :created
         when :invalid

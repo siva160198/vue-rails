@@ -3,6 +3,7 @@ Rails.application.routes.draw do
     namespace :v1 do
       get "status", to: "status#show"
       get "csrf", to: "csrf#show"
+      resource :registration, only: :create
       resource :session, only: %i[show create destroy] do
         post :verify_otp
         post :resend_otp

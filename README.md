@@ -12,6 +12,7 @@ Vue frontend, PostgreSQL, authentication, authorization, and an admin panel.
 - PostgreSQL
 - Rails native session authentication with CSRF protection
 - Email OTP two-factor authentication through Action Mailer
+- Public member registration with email verification
 - Pundit authorization with `admin` and `member` roles
 - CORS configuration and Vite development proxy
 - Minitest coverage for login and admin authorization
@@ -108,6 +109,14 @@ SMTP_STARTTLS_AUTO=true
 ```
 
 Store these values in the deployment platform's secret manager, never in Git.
+
+## Member registration
+
+Public registration is available at `http://localhost:5173/register`. New
+accounts always receive the `member` role, require a password of at least 12
+characters, and must verify their email with OTP before a session is created.
+Administrator accounts are created or promoted separately through trusted
+server-side operations such as the development seed.
 
 ## Production configuration
 

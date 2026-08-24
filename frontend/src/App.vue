@@ -11,6 +11,7 @@ const route = useRoute()
         <RouterLink to="/" class="text-xl font-bold tracking-tight">Tourplan</RouterLink>
         <div class="flex items-center gap-5 text-sm font-medium">
           <RouterLink to="/" class="hover:text-emerald-600">Home</RouterLink>
+          <RouterLink to="/register" class="hover:text-emerald-600">Daftar</RouterLink>
           <RouterLink to="/admin" class="hover:text-emerald-600">Admin</RouterLink>
         </div>
       </nav>

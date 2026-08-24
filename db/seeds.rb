@@ -12,6 +12,7 @@ if Rails.env.development?
   end
 
   admin.role = :admin
+  admin.email_verified_at ||= Time.current
   admin.save!
 
   puts "Development admin ready: #{admin.email_address}"
