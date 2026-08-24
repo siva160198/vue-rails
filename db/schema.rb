@@ -10,9 +10,21 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_20_163926) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_24_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "login_challenges", force: :cascade do |t|
+    t.integer "attempts_count", default: 0, null: false
+    t.string "code_digest", null: false
+    t.datetime "consumed_at"
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["expires_at"], name: "index_login_challenges_on_expires_at"
+    t.index ["user_id"], name: "index_login_challenges_on_user_id"
+  end
 
   create_table "sessions", force: :cascade do |t|
     t.datetime "created_at", null: false
@@ -32,5 +44,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_20_163926) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  add_foreign_key "login_challenges", "users"
   add_foreign_key "sessions", "users"
 end

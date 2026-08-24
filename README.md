@@ -11,6 +11,7 @@ Vue frontend, PostgreSQL, authentication, authorization, and an admin panel.
 - Ruby on Rails 8 JSON/REST API
 - PostgreSQL
 - Rails native session authentication with CSRF protection
+- Email OTP two-factor authentication through Action Mailer
 - Pundit authorization with `admin` and `member` roles
 - CORS configuration and Vite development proxy
 - Minitest coverage for login and admin authorization
@@ -86,6 +87,27 @@ ADMIN_EMAIL=admin@example.test ADMIN_PASSWORD='your-secure-password' bin/rails d
 ```
 
 The seed only creates this account in the development environment.
+
+## Email OTP
+
+Login requires a six-digit email OTP after the password is accepted. In
+development, outgoing messages are saved under `tmp/mails` so the flow can be
+tested without an email provider. The OTP expires after five minutes, is
+single-use, and is locked after five failed attempts.
+
+For production, configure an SMTP provider with:
+
+```sh
+MAILER_FROM=no-reply@example.com
+SMTP_ADDRESS=smtp.example.com
+SMTP_PORT=587
+SMTP_USERNAME=your-username
+SMTP_PASSWORD=your-password
+SMTP_AUTHENTICATION=plain
+SMTP_STARTTLS_AUTO=true
+```
+
+Store these values in the deployment platform's secret manager, never in Git.
 
 ## Production configuration
 
