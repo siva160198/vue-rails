@@ -5,21 +5,21 @@ class Api::V1::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
     ActionMailer::Base.deliveries.clear
   end
 
-  test "user resets password with email OTP and old sessions are revoked" do
+  test "user resets password through a signed email link and old sessions are revoked" do
     user = users(:one)
     user.sessions.create!
 
-    post api_v1_password_reset_url,
-      params: { email_address: user.email_address }, as: :json
+    post api_v1_password_reset_url, params: { email_address: user.email_address }, as: :json
 
     assert_response :accepted
-    token = response.parsed_body.fetch("challenge_token")
     assert_equal 1, ActionMailer::Base.deliveries.size
-    code = ActionMailer::Base.deliveries.last.body.encoded[/\b\d{6}\b/]
+    token = token_from_email(ActionMailer::Base.deliveries.last)
+
+    get api_v1_password_reset_url, params: { token: token }, as: :json
+    assert_response :success
 
     patch api_v1_password_reset_url, params: {
-      challenge_token: token,
-      code: code,
+      token: token,
       password: "the-new-secure-password",
       password_confirmation: "the-new-secure-password"
     }, as: :json
@@ -28,60 +28,50 @@ class Api::V1::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
     assert User.authenticate_by(email_address: user.email_address, password: "the-new-secure-password")
     assert_not User.authenticate_by(email_address: user.email_address, password: "password")
     assert_empty user.sessions.reload
+
+    get api_v1_password_reset_url, params: { token: token }, as: :json
+    assert_response :unauthorized
   end
 
   test "unknown email receives the same accepted response without sending mail" do
-    assert_no_difference("PasswordResetChallenge.count") do
-      post api_v1_password_reset_url,
-        params: { email_address: "unknown@example.com" }, as: :json
-    end
+    post api_v1_password_reset_url, params: { email_address: "unknown@example.com" }, as: :json
 
     assert_response :accepted
-    assert response.parsed_body["challenge_token"].present?
+    assert_equal "Jika email terdaftar, link reset telah dikirim.", response.parsed_body["message"]
     assert_empty ActionMailer::Base.deliveries
   end
 
-  test "invalid OTP does not change the password" do
-    challenge, = PasswordResetChallenge.issue_for!(users(:one))
+  test "invalid token cannot open or submit the reset form" do
+    get api_v1_password_reset_url, params: { token: "invalid" }, as: :json
+    assert_response :unauthorized
 
     patch api_v1_password_reset_url, params: {
-      challenge_token: challenge.token,
-      code: "000000",
+      token: "invalid",
       password: "the-new-secure-password",
       password_confirmation: "the-new-secure-password"
     }, as: :json
-
     assert_response :unauthorized
-    assert User.authenticate_by(email_address: users(:one).email_address, password: "password")
   end
 
-  test "invalid password does not consume a valid OTP" do
-    challenge, code = PasswordResetChallenge.issue_for!(users(:one))
+  test "invalid password does not invalidate a valid reset link" do
+    user = users(:one)
+    token = user.password_reset_token
 
     patch api_v1_password_reset_url, params: {
-      challenge_token: challenge.token,
-      code: code,
+      token: token,
       password: "short",
       password_confirmation: "different"
     }, as: :json
-
     assert_response :unprocessable_content
-    assert_not challenge.reload.consumed_at?
-  end
 
-  test "reset OTP can only be used once" do
-    challenge, code = PasswordResetChallenge.issue_for!(users(:one))
-    params = {
-      challenge_token: challenge.token,
-      code: code,
-      password: "the-new-secure-password",
-      password_confirmation: "the-new-secure-password"
-    }
-
-    patch api_v1_password_reset_url, params: params, as: :json
+    get api_v1_password_reset_url, params: { token: token }, as: :json
     assert_response :success
-
-    patch api_v1_password_reset_url, params: params, as: :json
-    assert_response :unauthorized
   end
+
+  private
+    def token_from_email(email)
+      reset_url = email.body.encoded[%r{http://localhost:5173/reset-password\?token=[^\s<"]+}]
+      query = URI.parse(CGI.unescapeHTML(reset_url)).query
+      URI.decode_www_form(query).to_h.fetch("token")
+    end
 end

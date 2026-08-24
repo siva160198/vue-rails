@@ -122,10 +122,11 @@ server-side operations such as the development seed.
 ## Password recovery
 
 The login page links to `http://localhost:5173/forgot-password`. Password
-recovery sends a separate six-digit OTP that expires after ten minutes. A
-successful reset revokes all existing sessions for the account. Development
-reset emails appear in `http://localhost:3000/letter_opener` alongside login and
-registration OTP messages.
+recovery emails a Rails-signed reset link that expires after fifteen minutes and
+becomes invalid as soon as the password changes. The frontend verifies the token
+before showing the new-password form. A successful reset revokes all existing
+sessions for the account. Development reset emails appear in
+`http://localhost:3000/letter_opener`.
 
 ## Production configuration
 

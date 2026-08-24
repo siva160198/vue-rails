@@ -19,8 +19,8 @@ default.
 - Rails API code is under `app/controllers/api/v1`.
 - Admin API endpoints are under `app/controllers/api/v1/admin`.
 - Public member registration is handled by `Api::V1::RegistrationsController`.
-- Password recovery is handled by `Api::V1::PasswordResetsController` and uses a
-  separate `PasswordResetChallenge`; it must never create an authenticated session.
+- Password recovery is handled by `Api::V1::PasswordResetsController` and uses
+  Rails' native `password_reset_token`; it must never create an authenticated session.
 - Authorization policies are under `app/policies`.
 - Authentication helpers are in `app/controllers/concerns/authentication.rb`.
 - Vue application code is under `frontend/src`.
