@@ -2,12 +2,14 @@
 import { onMounted, ref } from 'vue'
 import {
   Bell, CalendarDays, ChevronDown, CircleHelp, Compass, LayoutDashboard,
-  LogOut, Map, Menu, Moon, Plane, Search, Settings, Sun, Users, X,
+  LogOut, Map, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plane, Search,
+  Settings, Sun, Users, X,
 } from '@lucide/vue'
 
 defineProps({ email: { type: String, default: '' } })
 const emit = defineEmits(['logout'])
 const sidebarOpen = ref(false)
+const desktopSidebarOpen = ref(true)
 const profileOpen = ref(false)
 const dark = ref(false)
 
@@ -21,6 +23,7 @@ const navigation = [
 
 onMounted(() => {
   dark.value = localStorage.getItem('tourplan-theme') === 'dark'
+  desktopSidebarOpen.value = localStorage.getItem('tourplan-sidebar') !== 'closed'
   document.documentElement.classList.toggle('dark', dark.value)
 })
 
@@ -29,13 +32,18 @@ function toggleTheme() {
   document.documentElement.classList.toggle('dark', dark.value)
   localStorage.setItem('tourplan-theme', dark.value ? 'dark' : 'light')
 }
+
+function toggleDesktopSidebar() {
+  desktopSidebarOpen.value = !desktopSidebarOpen.value
+  localStorage.setItem('tourplan-sidebar', desktopSidebarOpen.value ? 'open' : 'closed')
+}
 </script>
 
 <template>
   <div class="min-h-screen bg-gray-50 font-outfit dark:bg-gray-900">
     <div v-if="sidebarOpen" class="fixed inset-0 z-40 bg-gray-900/50 lg:hidden" @click="sidebarOpen = false"></div>
 
-    <aside :class="sidebarOpen ? 'translate-x-0' : '-translate-x-full'" class="fixed inset-y-0 left-0 z-50 flex w-[290px] flex-col border-r border-gray-200 bg-white px-5 transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900 lg:translate-x-0">
+    <aside :class="[sidebarOpen ? 'translate-x-0' : '-translate-x-full', desktopSidebarOpen ? 'lg:translate-x-0' : 'lg:-translate-x-full']" class="fixed inset-y-0 left-0 z-50 flex w-[290px] flex-col border-r border-gray-200 bg-white px-5 transition-transform duration-300 dark:border-gray-800 dark:bg-gray-900">
       <div class="flex h-20 items-center justify-between px-2">
         <RouterLink to="/admin" class="flex items-center gap-3">
           <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white"><Compass :size="22" /></span>
@@ -67,10 +75,14 @@ function toggleTheme() {
       </div>
     </aside>
 
-    <div class="lg:pl-[290px]">
+    <div :class="desktopSidebarOpen ? 'lg:pl-[290px]' : 'lg:pl-0'" class="transition-[padding] duration-300">
       <header class="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
         <div class="flex items-center gap-3">
           <button class="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 dark:border-gray-800 lg:hidden" @click="sidebarOpen = true"><Menu :size="20" /></button>
+          <button :aria-label="desktopSidebarOpen ? 'Sembunyikan sidebar' : 'Tampilkan sidebar'" :title="desktopSidebarOpen ? 'Sembunyikan sidebar' : 'Tampilkan sidebar'" class="hidden h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800 lg:flex" @click="toggleDesktopSidebar">
+            <PanelLeftClose v-if="desktopSidebarOpen" :size="20" />
+            <PanelLeftOpen v-else :size="20" />
+          </button>
           <div class="relative hidden md:block">
             <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input class="w-72 rounded-lg border border-gray-200 bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none focus:border-brand-400 dark:border-gray-800 dark:text-white" placeholder="Search or type command..." />
