@@ -29,7 +29,13 @@ export default defineConfig({
       url: 'http://127.0.0.1:3000/up',
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
-      env: { ...process.env, E2E_ADMIN_EMAIL: adminEmail, E2E_ADMIN_PASSWORD: adminPassword },
+      env: {
+        ...process.env,
+        ADMIN_EMAIL: adminEmail,
+        ADMIN_PASSWORD: adminPassword,
+        E2E_ADMIN_EMAIL: adminEmail,
+        E2E_ADMIN_PASSWORD: adminPassword,
+      },
     },
     {
       name: 'vite',
