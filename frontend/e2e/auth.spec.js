@@ -1,8 +1,10 @@
 import { expect, test } from '@playwright/test'
 import fs from 'node:fs/promises'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-const mailDirectory = path.resolve(process.cwd(), '../tmp/letter_opener')
+const testDirectory = path.dirname(fileURLToPath(import.meta.url))
+const mailDirectory = path.resolve(testDirectory, '../../tmp/letter_opener')
 const adminEmail = 'admin@example.test'
 const initialAdminPassword = 'e2e-admin-password'
 
