@@ -1,24 +1,27 @@
 <script setup>
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Bell, CalendarDays, ChevronDown, CircleHelp, Compass, LayoutDashboard,
-  LogOut, Map, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plane, Search,
-  Settings, Sun, Users, X,
+  LogOut, Map, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plane, ScrollText,
+  Search, Settings, Sun, Users, X,
 } from '@lucide/vue'
 
 defineProps({ email: { type: String, default: '' } })
 const emit = defineEmits(['logout'])
+const route = useRoute()
 const sidebarOpen = ref(false)
 const desktopSidebarOpen = ref(true)
 const profileOpen = ref(false)
 const dark = ref(false)
 
 const navigation = [
-  { label: 'Dashboard', icon: LayoutDashboard, active: true },
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
+  { label: 'Users', icon: Users, to: '/admin/users' },
+  { label: 'Audit logs', icon: ScrollText, to: '/admin/audit-logs' },
   { label: 'Trips', icon: Plane },
   { label: 'Destinations', icon: Map },
   { label: 'Bookings', icon: CalendarDays },
-  { label: 'Users', icon: Users },
 ]
 
 onMounted(() => {
@@ -56,9 +59,11 @@ function toggleDesktopSidebar() {
         <p :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="mb-4 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Menu</p>
         <ul class="space-y-2">
           <li v-for="item in navigation" :key="item.label">
-            <button :title="desktopSidebarOpen ? undefined : item.label" :class="[item.active ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5', desktopSidebarOpen ? '' : 'lg:justify-center']" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium">
+            <RouterLink v-if="item.to" :to="item.to" :title="desktopSidebarOpen ? undefined : item.label" :class="[route.path === item.to ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5', desktopSidebarOpen ? '' : 'lg:justify-center']" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium" @click="sidebarOpen = false">
               <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span>
-              <span v-if="!item.active" :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800">Soon</span>
+            </RouterLink>
+            <button v-else :title="desktopSidebarOpen ? undefined : item.label" :class="desktopSidebarOpen ? '' : 'lg:justify-center'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5">
+              <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span><span :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800">Soon</span>
             </button>
           </li>
         </ul>

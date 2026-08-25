@@ -29,6 +29,7 @@ module Api
         user.assign_attributes(password_params)
         if user.save
           user.sessions.destroy_all
+          AuditLog.record!(action: "password.reset", actor: user, auditable: user, request: request)
           render json: { message: "Password berhasil diperbarui. Silakan login." }
         else
           render json: { error: user.errors.full_messages.to_sentence, errors: user.errors.to_hash },

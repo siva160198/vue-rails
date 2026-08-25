@@ -16,10 +16,15 @@ module Tourplan
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w[assets tasks])
 
-    config.middleware.insert_before 0, Rack::Cors do
-      allow do
-        origins ENV.fetch("FRONTEND_ORIGIN", "http://localhost:5173")
-        resource "/api/*", headers: :any, methods: %i[get post put patch delete options head], credentials: true
+    frontend_origin = ENV["FRONTEND_ORIGIN"]
+    frontend_origin ||= "http://localhost:5173" unless Rails.env.production?
+
+    if frontend_origin
+      config.middleware.insert_before 0, Rack::Cors do
+        allow do
+          origins frontend_origin
+          resource "/api/*", headers: :any, methods: %i[get post put patch delete options head], credentials: true
+        end
       end
     end
 

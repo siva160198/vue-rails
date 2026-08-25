@@ -13,6 +13,7 @@ module Api
           user.save!
           challenge, code = LoginChallenge.issue_for!(user)
           LoginOtpMailer.with(user: user, code: code).verification_code.deliver_now
+          AuditLog.record!(action: "user.registered", actor: user, auditable: user, request: request)
 
           render json: challenge_json(challenge), status: :created
         end

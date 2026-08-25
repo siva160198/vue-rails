@@ -14,8 +14,10 @@ Vue frontend, PostgreSQL, authentication, authorization, and an admin panel.
 - Email OTP two-factor authentication through Action Mailer
 - Public member registration with email verification
 - Pundit authorization with `admin` and `member` roles
+- Admin user management and security audit log
 - CORS configuration and Vite development proxy
-- Minitest coverage for login and admin authorization
+- Minitest, Vitest, and Playwright E2E coverage
+- Multi-stage production Docker image for Rails and Vue
 
 ## Create a project
 
@@ -130,16 +132,46 @@ sessions for the account. Development reset emails appear in
 
 ## Production configuration
 
-Provide the renamed database password environment variable and Rails master
-key through your deployment platform. Never commit `.env`, `config/master.key`,
-or encrypted credentials generated for a specific deployed application.
+Copy `.env.example` into the deployment platform's secret/configuration system.
+Production enables HTTPS/HSTS, secure cookies, CSP, security headers, and SMTP
+validation by default. Set `FRONTEND_ORIGIN` only when Vue is deployed on a
+different origin; the Docker image serves Vue and Rails from one origin.
+
+Build and run the production image:
+
+```sh
+docker build -t my_project .
+docker run --env-file .env -p 80:80 my_project
+```
+
+The Docker build uses Ruby 4.0.6 and Node 22, builds Vue into
+`public/frontend`, and serves SPA routes through Rails. Never commit `.env`,
+`config/master.key`, or deployed application credentials.
+
+## Admin operations
+
+- User management: `http://localhost:5173/admin/users`
+- Audit logs: `http://localhost:5173/admin/audit-logs`
+
+Admins can search users, change member/admin roles, and disable accounts. An
+admin cannot change their own access. Disabling a user revokes their sessions,
+and security-sensitive actions are written to the audit log.
 
 ## Verification
 
 ```sh
 bin/rails test
+npm test --prefix frontend
+npm run test:e2e --prefix frontend
 npm run build --prefix frontend
 bin/rubocop
+```
+
+Playwright starts Rails and Vite automatically. Install its Chromium runtime
+once on a development machine with:
+
+```sh
+npx --prefix frontend playwright install chromium
 ```
 
 ## Template maintenance

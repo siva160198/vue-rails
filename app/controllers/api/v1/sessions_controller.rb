@@ -12,7 +12,7 @@ module Api
       def create
         user = User.authenticate_by(params.permit(:email_address, :password))
 
-        if user
+        if user&.active?
           challenge, code = LoginChallenge.issue_for!(user)
           LoginOtpMailer.with(user: user, code: code).verification_code.deliver_now
           render json: challenge_json(challenge), status: :accepted
@@ -27,8 +27,11 @@ module Api
 
         case challenge.verify(params[:code])
         when :verified
+          return render json: { error: "Akun tidak aktif." }, status: :forbidden unless challenge.user.active?
+
           challenge.user.update!(email_verified_at: Time.current) unless challenge.user.email_verified?
           start_new_session_for(challenge.user)
+          AuditLog.record!(action: "session.login", actor: challenge.user, auditable: challenge.user, request: request)
           render json: { user: user_json(challenge.user) }, status: :created
         when :invalid
           render json: { error: "Kode OTP tidak valid." }, status: :unauthorized
@@ -55,6 +58,7 @@ module Api
       end
 
       def destroy
+        AuditLog.record!(action: "session.logout", actor: Current.user, auditable: Current.user, request: request)
         terminate_session
         head :no_content
       end

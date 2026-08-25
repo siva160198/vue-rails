@@ -10,9 +10,25 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_25_020000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_25_030000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+
+  create_table "audit_logs", force: :cascade do |t|
+    t.string "action", null: false
+    t.bigint "actor_id"
+    t.bigint "auditable_id"
+    t.string "auditable_type"
+    t.datetime "created_at", null: false
+    t.string "ip_address"
+    t.jsonb "metadata", default: {}, null: false
+    t.datetime "updated_at", null: false
+    t.string "user_agent"
+    t.index ["action"], name: "index_audit_logs_on_action"
+    t.index ["actor_id"], name: "index_audit_logs_on_actor_id"
+    t.index ["auditable_type", "auditable_id"], name: "index_audit_logs_on_auditable_type_and_auditable_id"
+    t.index ["created_at"], name: "index_audit_logs_on_created_at"
+  end
 
   create_table "login_challenges", force: :cascade do |t|
     t.integer "attempts_count", default: 0, null: false
@@ -36,6 +52,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_020000) do
   end
 
   create_table "users", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
     t.datetime "created_at", null: false
     t.string "email_address", null: false
     t.datetime "email_verified_at"
@@ -45,6 +62,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_25_020000) do
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
   end
 
+  add_foreign_key "audit_logs", "users", column: "actor_id"
   add_foreign_key "login_challenges", "users"
   add_foreign_key "sessions", "users"
 end
