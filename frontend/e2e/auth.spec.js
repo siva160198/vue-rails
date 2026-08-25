@@ -43,7 +43,7 @@ test('member can register and verify email with OTP', async ({ page }) => {
 
   await page.goto('/register')
   await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Password', { exact: true }).fill('member-secure-password')
+  await page.locator('input[autocomplete="new-password"]').first().fill('member-secure-password')
   await page.getByLabel('Konfirmasi password').fill('member-secure-password')
   await page.getByRole('button', { name: 'Daftar', exact: true }).click()
 
