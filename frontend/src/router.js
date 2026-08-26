@@ -7,6 +7,9 @@ import RegisterView from './views/RegisterView.vue'
 import AdminView from './views/AdminView.vue'
 import AdminUsersView from './views/AdminUsersView.vue'
 import AdminAuditLogsView from './views/AdminAuditLogsView.vue'
+import ForbiddenView from './views/ForbiddenView.vue'
+import NotFoundView from './views/NotFoundView.vue'
+import AppErrorView from './views/AppErrorView.vue'
 import { currentUser } from './services/api'
 
 const router = createRouter({
@@ -17,9 +20,12 @@ const router = createRouter({
     { path: '/forgot-password', component: ForgotPasswordView },
     { path: '/reset-password', component: ResetPasswordView },
     { path: '/register', component: RegisterView },
+    { path: '/403', component: ForbiddenView },
+    { path: '/error', component: AppErrorView },
     { path: '/admin', component: AdminView, meta: { requiresAdmin: true, layout: 'admin' } },
     { path: '/admin/users', component: AdminUsersView, meta: { requiresAdmin: true, layout: 'admin' } },
     { path: '/admin/audit-logs', component: AdminAuditLogsView, meta: { requiresAdmin: true, layout: 'admin' } },
+    { path: '/:pathMatch(.*)*', component: NotFoundView },
   ],
 })
 
@@ -27,8 +33,13 @@ router.beforeEach(async (to) => {
   if (!to.meta.requiresAdmin) return true
   const user = await currentUser()
   if (!user) return { path: '/login', query: { redirect: to.fullPath } }
-  if (user.role !== 'admin') return { path: '/' }
+  if (user.role !== 'admin') return { path: '/403' }
   return true
+})
+
+router.onError((error) => {
+  console.error('Vue Router error:', error)
+  if (router.currentRoute.value.path !== '/error') router.replace('/error')
 })
 
 export default router

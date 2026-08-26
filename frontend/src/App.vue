@@ -1,5 +1,7 @@
 <script setup>
 import { useRoute } from 'vue-router'
+import AppErrorView from './views/AppErrorView.vue'
+import { appError } from './services/errorState'
 
 const route = useRoute()
 </script>
@@ -16,6 +18,7 @@ const route = useRoute()
         </div>
       </nav>
     </header>
-    <RouterView />
+    <AppErrorView v-if="appError" />
+    <RouterView v-else />
   </div>
 </template>
