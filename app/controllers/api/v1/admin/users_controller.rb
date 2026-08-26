@@ -8,7 +8,7 @@ module Api
           users = users.where("email_address ILIKE ?", "%#{User.sanitize_sql_like(params[:search])}%") if params[:search].present?
           users = users.limit(100)
 
-          render json: { users: users.map { |user| user_json(user) } }
+          render json: { users: users.map { |user| user_json(user) }, roles: Role.order(:name).pluck(:key, :name).map { |key, name| { key: key, name: name } } }
         end
 
         def update

@@ -7,7 +7,7 @@ module Api
 
       def create
         user = User.new(registration_params)
-        user.role = :member
+        user.role = "member"
 
         User.transaction do
           user.save!

@@ -1,0 +1,17 @@
+admin:
+  key: admin
+  name: Administrator
+  description: Akses penuh ke seluruh admin panel.
+  system: true
+
+member:
+  key: member
+  name: Member
+  description: Role bawaan pengguna.
+  system: true
+
+editor:
+  key: editor
+  name: Editor
+  description: Mengelola konten.
+  system: false

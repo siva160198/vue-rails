@@ -3,13 +3,22 @@ class User < ApplicationRecord
   has_many :sessions, dependent: :destroy
   has_many :login_challenges, dependent: :destroy
   has_many :audit_logs, foreign_key: :actor_id, dependent: :nullify, inverse_of: :actor
+  belongs_to :role_record, class_name: "Role", foreign_key: :role, primary_key: :key, inverse_of: :users
 
-  enum :role, { member: "member", admin: "admin" }, default: :member, validate: true
+  scope :admin, -> { where(role: "admin") }
 
   normalizes :email_address, with: ->(e) { e.strip.downcase }
   validates :email_address, presence: true, uniqueness: true
   validates :password, length: { minimum: 12 }, if: -> { password.present? }
   validates :active, inclusion: { in: [ true, false ] }
+
+  def admin?
+    role == "admin"
+  end
+
+  def member?
+    role == "member"
+  end
 
   def email_verified?
     email_verified_at.present?

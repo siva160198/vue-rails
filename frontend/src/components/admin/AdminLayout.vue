@@ -4,7 +4,7 @@ import { useRoute } from 'vue-router'
 import {
   Bell, CalendarDays, ChevronDown, CircleHelp, Compass, LayoutDashboard,
   LogOut, Map, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plane, ScrollText,
-  Search, Settings, Sun, Users, X,
+  Search, Settings, ShieldCheck, Sun, Users, X,
 } from '@lucide/vue'
 
 defineProps({ email: { type: String, default: '' } })
@@ -18,6 +18,7 @@ const dark = ref(false)
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
   { label: 'Users', icon: Users, to: '/admin/users' },
+  { label: 'Roles', icon: ShieldCheck, to: '/admin/roles' },
   { label: 'Audit logs', icon: ScrollText, to: '/admin/audit-logs' },
   { label: 'Trips', icon: Plane },
   { label: 'Destinations', icon: Map },

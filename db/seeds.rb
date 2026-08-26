@@ -2,6 +2,9 @@
 # development, test). The code here should be idempotent so that it can be executed at any point in every environment.
 # The data can then be loaded with the bin/rails db:seed command (or created alongside the database with db:setup).
 #
+Role.find_or_create_by!(key: "admin") { |role| role.assign_attributes(name: "Administrator", description: "Akses penuh ke seluruh admin panel.", system: true) }
+Role.find_or_create_by!(key: "member") { |role| role.assign_attributes(name: "Member", description: "Role bawaan untuk pengguna yang melakukan registrasi.", system: true) }
+
 if Rails.env.development?
   admin = User.find_or_initialize_by(email_address: ENV.fetch("ADMIN_EMAIL", "admin@tourplan.local"))
 
@@ -11,7 +14,7 @@ if Rails.env.development?
     end
   end
 
-  admin.role = :admin
+  admin.role = "admin"
   admin.email_verified_at ||= Time.current
   admin.save!
 
