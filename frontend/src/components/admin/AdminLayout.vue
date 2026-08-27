@@ -14,11 +14,18 @@ const sidebarOpen = ref(false)
 const desktopSidebarOpen = ref(true)
 const profileOpen = ref(false)
 const dark = ref(false)
+const userManagementOpen = ref(route.path.startsWith('/admin/users') || route.path.startsWith('/admin/roles'))
 
 const navigation = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
-  { label: 'Users', icon: Users, to: '/admin/users' },
-  { label: 'Roles', icon: ShieldCheck, to: '/admin/roles' },
+  {
+    label: 'User Management',
+    icon: Users,
+    children: [
+      { label: 'Users', icon: Users, to: '/admin/users' },
+      { label: 'Roles', icon: ShieldCheck, to: '/admin/roles' },
+    ],
+  },
   { label: 'Audit logs', icon: ScrollText, to: '/admin/audit-logs' },
   { label: 'Trips', icon: Plane },
   { label: 'Destinations', icon: Map },
@@ -40,6 +47,13 @@ function toggleTheme() {
 function toggleDesktopSidebar() {
   desktopSidebarOpen.value = !desktopSidebarOpen.value
   localStorage.setItem('tourplan-sidebar', desktopSidebarOpen.value ? 'open' : 'closed')
+}
+
+function toggleUserManagement() {
+  const wasCollapsed = !desktopSidebarOpen.value
+  if (wasCollapsed) desktopSidebarOpen.value = true
+  userManagementOpen.value = wasCollapsed ? true : !userManagementOpen.value
+  localStorage.setItem('tourplan-sidebar', 'open')
 }
 </script>
 
@@ -63,6 +77,18 @@ function toggleDesktopSidebar() {
             <RouterLink v-if="item.to" :to="item.to" :title="desktopSidebarOpen ? undefined : item.label" :class="[route.path === item.to ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5', desktopSidebarOpen ? '' : 'lg:justify-center']" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium" @click="sidebarOpen = false">
               <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span>
             </RouterLink>
+            <template v-else-if="item.children">
+              <button :title="desktopSidebarOpen ? undefined : item.label" :class="[item.children.some((child) => route.path === child.to) ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5', desktopSidebarOpen ? '' : 'lg:justify-center']" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium" :aria-expanded="userManagementOpen" @click="toggleUserManagement">
+                <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span><ChevronDown :class="[userManagementOpen ? 'rotate-180' : '', desktopSidebarOpen ? '' : 'lg:hidden']" :size="16" class="ml-auto transition-transform" />
+              </button>
+              <ul v-show="userManagementOpen" :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="ml-5 mt-2 space-y-1 border-l border-gray-200 pl-4 dark:border-gray-700">
+                <li v-for="child in item.children" :key="child.to">
+                  <RouterLink :to="child.to" :class="route.path === child.to ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5'" class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium" @click="sidebarOpen = false">
+                    <component :is="child.icon" :size="17" />{{ child.label }}
+                  </RouterLink>
+                </li>
+              </ul>
+            </template>
             <button v-else :title="desktopSidebarOpen ? undefined : item.label" :class="desktopSidebarOpen ? '' : 'lg:justify-center'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5">
               <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span><span :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800">Soon</span>
             </button>
