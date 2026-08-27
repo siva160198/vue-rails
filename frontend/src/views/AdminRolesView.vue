@@ -12,6 +12,10 @@ const error = ref('')
 const notice = ref('')
 const form = reactive({ key: '', name: '', description: '' })
 
+function sanitizeKey(event) {
+  form.key = event.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
+}
+
 async function loadRoles() {
   loading.value = true
   error.value = ''
@@ -85,7 +89,7 @@ onMounted(async () => {
 
       <form class="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2" @submit.prevent="createRole">
         <div><label class="mb-2 block text-sm font-medium dark:text-white">Nama role</label><input v-model="form.name" required class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" placeholder="Contoh: Editor" /></div>
-        <div><label class="mb-2 block text-sm font-medium dark:text-white">Key</label><input v-model="form.key" required pattern="[a-z][a-z0-9_]*" class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" placeholder="editor" /><p class="mt-1 text-xs text-gray-400">Huruf kecil, angka, dan underscore.</p></div>
+        <div><label class="mb-2 block text-sm font-medium dark:text-white">Key</label><input v-model="form.key" required pattern="[a-z0-9_]+" class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" placeholder="editor" @input="sanitizeKey" /><p class="mt-1 text-xs text-gray-400">Input otomatis dibatasi ke huruf kecil, angka, dan underscore.</p></div>
         <div class="md:col-span-2"><label class="mb-2 block text-sm font-medium dark:text-white">Deskripsi</label><textarea v-model="form.description" rows="2" class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" /></div>
         <div class="md:col-span-2"><button class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">Tambah role</button></div>
       </form>
