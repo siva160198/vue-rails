@@ -4,10 +4,11 @@ import { useRouter } from 'vue-router'
 import { Activity, ArrowDownRight, ArrowUpRight, Database, ShieldCheck, Users } from '@lucide/vue'
 import AdminLayout from '../components/admin/AdminLayout.vue'
 import { apiFetch } from '../services/api'
+import { toast } from '../services/toast'
 
 const router = useRouter()
 const dashboard = ref(null)
-const error = ref('')
+const loadFailed = ref(false)
 
 const cards = computed(() => dashboard.value ? [
   { label: 'Total users', value: dashboard.value.metrics.users, change: '+0%', trend: 'up', icon: Users },
@@ -18,12 +19,16 @@ const cards = computed(() => dashboard.value ? [
 
 onMounted(async () => {
   try { dashboard.value = await apiFetch('/api/v1/admin/dashboard') }
-  catch (requestError) { error.value = requestError.message }
+  catch (requestError) { loadFailed.value = true; toast.error(requestError.message) }
 })
 
 async function logout() {
-  await apiFetch('/api/v1/session', { method: 'DELETE' })
-  await router.push('/login')
+  try {
+    await apiFetch('/api/v1/session', { method: 'DELETE' })
+    await router.push('/login')
+  } catch (requestError) {
+    toast.error(requestError.message)
+  }
 }
 </script>
 
@@ -35,7 +40,7 @@ async function logout() {
         <div class="flex items-center gap-2 text-sm text-gray-500"><span>Home</span><span>/</span><span class="text-brand-500">Dashboard</span></div>
       </div>
 
-      <div v-if="error" class="rounded-xl border border-error-200 bg-error-50 p-4 text-error-700">{{ error }}</div>
+      <p v-if="loadFailed" class="py-12 text-center text-sm text-gray-500">Dashboard tidak dapat dimuat. Silakan coba kembali.</p>
       <div v-else-if="!dashboard" class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <div v-for="item in 4" :key="item" class="h-40 animate-pulse rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]"></div>
       </div>

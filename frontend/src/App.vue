@@ -2,6 +2,7 @@
 import { useRoute } from 'vue-router'
 import AppErrorView from './views/AppErrorView.vue'
 import { appError } from './services/errorState'
+import ToastContainer from './components/ToastContainer.vue'
 
 const route = useRoute()
 </script>
@@ -20,5 +21,6 @@ const route = useRoute()
     </header>
     <AppErrorView v-if="appError" />
     <RouterView v-else />
+    <ToastContainer />
   </div>
 </template>

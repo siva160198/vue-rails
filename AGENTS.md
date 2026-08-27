@@ -11,8 +11,9 @@ default.
 - Database: PostgreSQL
 - Authentication: Rails native session authentication using signed HTTP-only cookies
   plus email OTP challenges through Action Mailer
-- Authorization: Pundit with `admin` and `member` roles
-- Tests: Rails Minitest
+- Authorization: Pundit with database-backed roles and granular permissions
+- Notifications: global floating Vue toasts through `frontend/src/services/toast.js`
+- Tests: Rails Minitest, Vitest, and Playwright
 
 ## Architecture
 
@@ -27,6 +28,8 @@ default.
 - Authentication helpers are in `app/controllers/concerns/authentication.rb`.
 - Vue application code is under `frontend/src`.
 - Frontend API requests go through `frontend/src/services/api.js`.
+- User-facing success, error, warning, and info notifications must use the global
+  toast API from `frontend/src/services/toast.js`; do not add page-local alert boxes.
 - Vue routes are defined in `frontend/src/router.js`.
 - The admin shell is `frontend/src/components/admin/AdminLayout.vue`.
 - Rails routes are defined in `config/routes.rb`.

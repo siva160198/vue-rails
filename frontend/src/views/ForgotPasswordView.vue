@@ -1,24 +1,21 @@
 <script setup>
 import { ref } from 'vue'
 import { apiFetch } from '../services/api'
+import { toast } from '../services/toast'
 
 const email = ref('')
-const error = ref('')
-const notice = ref('')
 const loading = ref(false)
 
 async function requestReset() {
-  error.value = ''
-  notice.value = ''
   loading.value = true
   try {
     const response = await apiFetch('/api/v1/password_reset', {
       method: 'POST',
       body: JSON.stringify({ email_address: email.value }),
     })
-    notice.value = response.message
+    toast.success(response.message)
   } catch (requestError) {
-    error.value = requestError.message
+    toast.error(requestError.message)
   } finally {
     loading.value = false
   }
@@ -34,8 +31,6 @@ async function requestReset() {
       <div class="mt-8">
         <label class="block text-sm font-medium">Email<input v-model="email" type="email" autocomplete="email" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
       </div>
-      <p v-if="error" class="mt-5 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700">{{ error }}</p>
-      <p v-if="notice" class="mt-5 rounded-xl bg-emerald-50 px-4 py-3 text-sm text-emerald-700">{{ notice }}</p>
       <button :disabled="loading" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60">{{ loading ? 'Memproses…' : 'Kirim link reset' }}</button>
       <p class="mt-5 text-center text-sm"><RouterLink to="/login" class="font-semibold text-emerald-600 hover:text-emerald-700">Kembali ke login</RouterLink></p>
     </form>

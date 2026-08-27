@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref } from 'vue'
 import { apiFetch } from '../services/api'
+import { toast } from '../services/toast'
 
 const api = ref({ state: 'loading', data: null, error: null })
 const stack = ['Vue 3', 'Vite', 'Ruby on Rails', 'PostgreSQL', 'JSON / REST', 'Tailwind CSS']
@@ -10,6 +11,7 @@ onMounted(async () => {
     api.value = { state: 'ready', data: await apiFetch('/api/v1/status'), error: null }
   } catch (error) {
     api.value = { state: 'error', data: null, error: error.message }
+    toast.error(`Rails API belum terhubung: ${error.message}`)
   }
 })
 </script>

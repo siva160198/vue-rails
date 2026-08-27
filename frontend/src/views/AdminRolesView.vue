@@ -3,14 +3,13 @@ import { onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import AdminLayout from '../components/admin/AdminLayout.vue'
 import { apiFetch, currentUser } from '../services/api'
+import { confirmToast, toast } from '../services/toast'
 
 const router = useRouter()
 const admin = ref(null)
 const roles = ref([])
 const permissions = ref([])
 const loading = ref(false)
-const error = ref('')
-const notice = ref('')
 const form = reactive({ key: '', name: '', description: '', permission_keys: [] })
 const canManage = () => admin.value?.permissions.includes('roles.manage')
 
@@ -20,67 +19,68 @@ function sanitizeKey(event) {
 
 async function loadRoles() {
   loading.value = true
-  error.value = ''
   try {
     const response = await apiFetch('/api/v1/admin/roles')
     roles.value = response.roles
     permissions.value = response.permissions
   } catch (requestError) {
-    error.value = requestError.message
+    toast.error(requestError.message)
   } finally {
     loading.value = false
   }
 }
 
 async function createRole() {
-  error.value = ''
-  notice.value = ''
   try {
     await apiFetch('/api/v1/admin/roles', { method: 'POST', body: JSON.stringify(form) })
     Object.assign(form, { key: '', name: '', description: '', permission_keys: [] })
-    notice.value = 'Role baru berhasil dibuat.'
+    toast.success('Role baru berhasil dibuat.')
     await loadRoles()
   } catch (requestError) {
-    error.value = requestError.message
+    toast.error(requestError.message)
   }
 }
 
 async function saveRole(role) {
-  error.value = ''
-  notice.value = ''
   try {
     const response = await apiFetch(`/api/v1/admin/roles/${role.id}`, {
       method: 'PATCH',
       body: JSON.stringify({ name: role.name, description: role.description, permission_keys: role.permission_keys }),
     })
     Object.assign(role, response.role)
-    notice.value = `${role.name} berhasil diperbarui.`
+    toast.success(`${role.name} berhasil diperbarui.`)
   } catch (requestError) {
-    error.value = requestError.message
+    toast.error(requestError.message)
   }
 }
 
 async function deleteRole(role) {
-  if (!window.confirm(`Hapus role ${role.name}?`)) return
-  error.value = ''
-  notice.value = ''
+  if (!await confirmToast(`Role ${role.name} akan dihapus permanen.`, { confirmLabel: 'Hapus' })) return
   try {
     await apiFetch(`/api/v1/admin/roles/${role.id}`, { method: 'DELETE' })
     roles.value = roles.value.filter((item) => item.id !== role.id)
-    notice.value = `${role.name} berhasil dihapus.`
+    toast.success(`${role.name} berhasil dihapus.`)
   } catch (requestError) {
-    error.value = requestError.message
+    toast.error(requestError.message)
   }
 }
 
 async function logout() {
-  await apiFetch('/api/v1/session', { method: 'DELETE' })
-  await router.push('/login')
+  try {
+    await apiFetch('/api/v1/session', { method: 'DELETE' })
+    await router.push('/login')
+  } catch (requestError) {
+    toast.error(requestError.message)
+  }
 }
 
 onMounted(async () => {
-  admin.value = await currentUser()
-  await loadRoles()
+  try {
+    admin.value = await currentUser()
+    await loadRoles()
+  } catch (requestError) {
+    toast.error(requestError.message)
+  }
 })
 </script>
 
@@ -88,8 +88,6 @@ onMounted(async () => {
   <AdminLayout :email="admin?.email_address" :permissions="admin?.permissions" @logout="logout">
     <div class="mx-auto max-w-[1536px]">
       <div class="mb-6"><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Role management</h1><p class="mt-1 text-sm text-gray-500">Buat role dan gunakan role tersebut pada user management.</p></div>
-      <p v-if="error" class="mb-4 rounded-xl bg-error-50 p-4 text-sm text-error-700">{{ error }}</p>
-      <p v-if="notice" class="mb-4 rounded-xl bg-success-50 p-4 text-sm text-success-700">{{ notice }}</p>
 
       <form v-if="canManage()" class="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2" @submit.prevent="createRole">
         <div><label class="mb-2 block text-sm font-medium dark:text-white">Nama role</label><input v-model="form.name" required class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" placeholder="Contoh: Editor" /></div>
