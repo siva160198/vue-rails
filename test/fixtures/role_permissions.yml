@@ -1,0 +1,18 @@
+admin_dashboard:
+  role: admin
+  permission: dashboard_view
+admin_users_view:
+  role: admin
+  permission: users_view
+admin_users_update:
+  role: admin
+  permission: users_update
+admin_roles_view:
+  role: admin
+  permission: roles_view
+admin_roles_manage:
+  role: admin
+  permission: roles_manage
+admin_audit_logs:
+  role: admin
+  permission: audit_logs_view

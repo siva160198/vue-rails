@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Bell, CalendarDays, ChevronDown, CircleHelp, Compass, LayoutDashboard,
@@ -7,7 +7,7 @@ import {
   Search, Settings, ShieldCheck, Sun, Users, X,
 } from '@lucide/vue'
 
-defineProps({ email: { type: String, default: '' } })
+const props = defineProps({ email: { type: String, default: '' }, permissions: { type: Array, default: () => [] } })
 const emit = defineEmits(['logout'])
 const route = useRoute()
 const sidebarOpen = ref(false)
@@ -17,20 +17,27 @@ const dark = ref(false)
 const userManagementOpen = ref(route.path.startsWith('/admin/users') || route.path.startsWith('/admin/roles'))
 
 const navigation = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/admin' },
+  { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', permission: 'dashboard.view' },
   {
     label: 'User Management',
     icon: Users,
     children: [
-      { label: 'Users', icon: Users, to: '/admin/users' },
-      { label: 'Roles', icon: ShieldCheck, to: '/admin/roles' },
+      { label: 'Users', icon: Users, to: '/admin/users', permission: 'users.view' },
+      { label: 'Roles', icon: ShieldCheck, to: '/admin/roles', permission: 'roles.view' },
     ],
   },
-  { label: 'Audit logs', icon: ScrollText, to: '/admin/audit-logs' },
+  { label: 'Audit logs', icon: ScrollText, to: '/admin/audit-logs', permission: 'audit_logs.view' },
   { label: 'Trips', icon: Plane },
   { label: 'Destinations', icon: Map },
   { label: 'Bookings', icon: CalendarDays },
 ]
+
+const visibleNavigation = computed(() => navigation.flatMap((item) => {
+  if (item.permission && !props.permissions.includes(item.permission)) return []
+  if (!item.children) return [item]
+  const children = item.children.filter((child) => props.permissions.includes(child.permission))
+  return children.length ? [{ ...item, children }] : []
+}))
 
 onMounted(() => {
   dark.value = localStorage.getItem('tourplan-theme') === 'dark'
@@ -73,7 +80,7 @@ function toggleUserManagement() {
       <nav class="mt-6 flex-1 overflow-y-auto">
         <p :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="mb-4 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Menu</p>
         <ul class="space-y-2">
-          <li v-for="item in navigation" :key="item.label">
+          <li v-for="item in visibleNavigation" :key="item.label">
             <RouterLink v-if="item.to" :to="item.to" :title="desktopSidebarOpen ? undefined : item.label" :class="[route.path === item.to ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5', desktopSidebarOpen ? '' : 'lg:justify-center']" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium" @click="sidebarOpen = false">
               <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span>
             </RouterLink>

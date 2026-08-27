@@ -20,6 +20,14 @@ class User < ApplicationRecord
     role == "member"
   end
 
+  def can?(permission_key)
+    role_record.permissions.exists?(key: permission_key)
+  end
+
+  def permission_keys
+    role_record.permissions.order(:key).pluck(:key)
+  end
+
   def email_verified?
     email_verified_at.present?
   end

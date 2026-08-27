@@ -25,7 +25,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AdminLayout :email="admin?.email_address" @logout="logout">
+  <AdminLayout :email="admin?.email_address" :permissions="admin?.permissions" @logout="logout">
     <div class="mx-auto max-w-[1536px]">
       <div class="mb-6"><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Audit logs</h1><p class="mt-1 text-sm text-gray-500">100 aktivitas terbaru yang penting bagi keamanan.</p></div>
       <p v-if="error" class="mb-4 rounded-xl bg-error-50 p-4 text-sm text-error-700">{{ error }}</p>

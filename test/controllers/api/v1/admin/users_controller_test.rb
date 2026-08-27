@@ -55,4 +55,18 @@ class Api::V1::Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "test.event", response.parsed_body.dig("audit_logs", 0, "action")
     assert_equal actor.email_address, response.parsed_body.dig("audit_logs", 0, "actor_email")
   end
+
+  test "role with view permission cannot update users without update permission" do
+    roles(:editor).permissions << permissions(:users_view)
+    viewer = users(:two)
+    viewer.update!(role: roles(:editor).key)
+    sign_in_as viewer
+
+    get api_v1_admin_users_url, as: :json
+    assert_response :success
+
+    patch api_v1_admin_user_url(users(:one)), params: { active: false }, as: :json
+    assert_response :forbidden
+    assert users(:one).reload.active?
+  end
 end

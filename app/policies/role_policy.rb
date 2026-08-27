@@ -1,23 +1,23 @@
 class RolePolicy < ApplicationPolicy
   def index?
-    user&.admin?
+    user&.can?("roles.view")
   end
 
   def create?
-    user&.admin?
+    user&.can?("roles.manage")
   end
 
   def update?
-    user&.admin?
+    user&.can?("roles.manage")
   end
 
   def destroy?
-    user&.admin? && record.destroyable?
+    user&.can?("roles.manage") && record.destroyable?
   end
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      user&.admin? ? scope.all : scope.none
+      user&.can?("roles.view") ? scope.all : scope.none
     end
   end
 end

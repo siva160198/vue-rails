@@ -23,19 +23,19 @@ const router = createRouter({
     { path: '/register', component: RegisterView },
     { path: '/403', component: ForbiddenView },
     { path: '/error', component: AppErrorView },
-    { path: '/admin', component: AdminView, meta: { requiresAdmin: true, layout: 'admin' } },
-    { path: '/admin/users', component: AdminUsersView, meta: { requiresAdmin: true, layout: 'admin' } },
-    { path: '/admin/roles', component: AdminRolesView, meta: { requiresAdmin: true, layout: 'admin' } },
-    { path: '/admin/audit-logs', component: AdminAuditLogsView, meta: { requiresAdmin: true, layout: 'admin' } },
+    { path: '/admin', component: AdminView, meta: { permission: 'dashboard.view', layout: 'admin' } },
+    { path: '/admin/users', component: AdminUsersView, meta: { permission: 'users.view', layout: 'admin' } },
+    { path: '/admin/roles', component: AdminRolesView, meta: { permission: 'roles.view', layout: 'admin' } },
+    { path: '/admin/audit-logs', component: AdminAuditLogsView, meta: { permission: 'audit_logs.view', layout: 'admin' } },
     { path: '/:pathMatch(.*)*', component: NotFoundView },
   ],
 })
 
 router.beforeEach(async (to) => {
-  if (!to.meta.requiresAdmin) return true
+  if (!to.meta.permission) return true
   const user = await currentUser()
   if (!user) return { path: '/login', query: { redirect: to.fullPath } }
-  if (user.role !== 'admin') return { path: '/403' }
+  if (!user.permissions.includes(to.meta.permission)) return { path: '/403' }
   return true
 })
 

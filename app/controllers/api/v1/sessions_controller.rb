@@ -65,7 +65,7 @@ module Api
 
       private
         def user_json(user)
-          user.as_json(only: %i[id email_address role])
+          user.as_json(only: %i[id email_address role]).merge(permissions: user.permission_keys)
         end
 
         def find_challenge

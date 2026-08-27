@@ -5,6 +5,19 @@
 Role.find_or_create_by!(key: "admin") { |role| role.assign_attributes(name: "Administrator", description: "Akses penuh ke seluruh admin panel.", system: true) }
 Role.find_or_create_by!(key: "member") { |role| role.assign_attributes(name: "Member", description: "Role bawaan untuk pengguna yang melakukan registrasi.", system: true) }
 
+permissions = {
+  "dashboard.view" => [ "Dashboard", "Melihat dashboard admin." ],
+  "users.view" => [ "Lihat users", "Melihat daftar dan detail user." ],
+  "users.update" => [ "Ubah users", "Mengubah role dan status user." ],
+  "roles.view" => [ "Lihat roles", "Melihat daftar role dan permission." ],
+  "roles.manage" => [ "Kelola roles", "Membuat, mengubah, dan menghapus role serta permission." ],
+  "audit_logs.view" => [ "Lihat audit logs", "Melihat riwayat aktivitas keamanan." ]
+}
+permissions.each do |key, (name, description)|
+  Permission.find_or_create_by!(key: key) { |permission| permission.assign_attributes(name: name, description: description) }
+end
+Role.find_by!(key: "admin").permissions = Permission.all
+
 if Rails.env.development?
   admin = User.find_or_initialize_by(email_address: ENV.fetch("ADMIN_EMAIL", "admin@tourplan.local"))
 

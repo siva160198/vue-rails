@@ -7,10 +7,12 @@ import { apiFetch, currentUser } from '../services/api'
 const router = useRouter()
 const admin = ref(null)
 const roles = ref([])
+const permissions = ref([])
 const loading = ref(false)
 const error = ref('')
 const notice = ref('')
-const form = reactive({ key: '', name: '', description: '' })
+const form = reactive({ key: '', name: '', description: '', permission_keys: [] })
+const canManage = () => admin.value?.permissions.includes('roles.manage')
 
 function sanitizeKey(event) {
   form.key = event.target.value.toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '')
@@ -20,7 +22,9 @@ async function loadRoles() {
   loading.value = true
   error.value = ''
   try {
-    roles.value = (await apiFetch('/api/v1/admin/roles')).roles
+    const response = await apiFetch('/api/v1/admin/roles')
+    roles.value = response.roles
+    permissions.value = response.permissions
   } catch (requestError) {
     error.value = requestError.message
   } finally {
@@ -33,7 +37,7 @@ async function createRole() {
   notice.value = ''
   try {
     await apiFetch('/api/v1/admin/roles', { method: 'POST', body: JSON.stringify(form) })
-    Object.assign(form, { key: '', name: '', description: '' })
+    Object.assign(form, { key: '', name: '', description: '', permission_keys: [] })
     notice.value = 'Role baru berhasil dibuat.'
     await loadRoles()
   } catch (requestError) {
@@ -47,7 +51,7 @@ async function saveRole(role) {
   try {
     const response = await apiFetch(`/api/v1/admin/roles/${role.id}`, {
       method: 'PATCH',
-      body: JSON.stringify({ name: role.name, description: role.description }),
+      body: JSON.stringify({ name: role.name, description: role.description, permission_keys: role.permission_keys }),
     })
     Object.assign(role, response.role)
     notice.value = `${role.name} berhasil diperbarui.`
@@ -81,16 +85,17 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AdminLayout :email="admin?.email_address" @logout="logout">
+  <AdminLayout :email="admin?.email_address" :permissions="admin?.permissions" @logout="logout">
     <div class="mx-auto max-w-[1536px]">
       <div class="mb-6"><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Role management</h1><p class="mt-1 text-sm text-gray-500">Buat role dan gunakan role tersebut pada user management.</p></div>
       <p v-if="error" class="mb-4 rounded-xl bg-error-50 p-4 text-sm text-error-700">{{ error }}</p>
       <p v-if="notice" class="mb-4 rounded-xl bg-success-50 p-4 text-sm text-success-700">{{ notice }}</p>
 
-      <form class="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2" @submit.prevent="createRole">
+      <form v-if="canManage()" class="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2" @submit.prevent="createRole">
         <div><label class="mb-2 block text-sm font-medium dark:text-white">Nama role</label><input v-model="form.name" required class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" placeholder="Contoh: Editor" /></div>
-        <div><label class="mb-2 block text-sm font-medium dark:text-white">Key</label><input v-model="form.key" required pattern="[a-z0-9_]+" class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" placeholder="editor" @input="sanitizeKey" /><p class="mt-1 text-xs text-gray-400">Input otomatis dibatasi ke huruf kecil, angka, dan underscore.</p></div>
+        <div><label class="mb-2 block text-sm font-medium dark:text-white">Key</label><input v-model="form.key" required pattern="[a-z0-9_]+" class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" placeholder="editor" @input="sanitizeKey" /><p class="mt-1 text-xs text-gray-400">Huruf kecil, angka, dan underscore.</p></div>
         <div class="md:col-span-2"><label class="mb-2 block text-sm font-medium dark:text-white">Deskripsi</label><textarea v-model="form.description" rows="2" class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm dark:border-gray-700 dark:text-white" /></div>
+        <fieldset class="md:col-span-2"><legend class="mb-3 text-sm font-medium dark:text-white">Permissions</legend><div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3"><label v-for="permission in permissions" :key="permission.key" class="flex cursor-pointer gap-3 rounded-xl border border-gray-200 p-3 dark:border-gray-700"><input v-model="form.permission_keys" type="checkbox" :value="permission.key" class="mt-1" /><span><strong class="block text-sm dark:text-white">{{ permission.name }}</strong><small class="text-gray-500">{{ permission.description }}</small></span></label></div></fieldset>
         <div class="md:col-span-2"><button class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600">Tambah role</button></div>
       </form>
 
@@ -98,11 +103,11 @@ onMounted(async () => {
         <table class="w-full text-left text-sm">
           <thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/[0.02]"><tr><th class="px-5 py-3">Role</th><th class="px-5 py-3">Key</th><th class="px-5 py-3">Deskripsi</th><th class="px-5 py-3">Users</th><th class="px-5 py-3">Action</th></tr></thead>
           <tbody><tr v-for="role in roles" :key="role.id" class="border-t border-gray-100 dark:border-gray-800">
-            <td class="px-5 py-4"><input v-model="role.name" class="rounded-lg border border-gray-200 bg-transparent px-3 py-2 font-medium dark:border-gray-700 dark:text-white" /></td>
+            <td class="px-5 py-4"><input v-model="role.name" :disabled="!canManage()" class="rounded-lg border border-gray-200 bg-transparent px-3 py-2 font-medium disabled:opacity-60 dark:border-gray-700 dark:text-white" /></td>
             <td class="px-5 py-4 font-mono text-xs text-gray-500">{{ role.key }}<span v-if="role.system" class="ml-2 rounded-full bg-brand-50 px-2 py-1 text-[10px] text-brand-600">SYSTEM</span></td>
-            <td class="px-5 py-4"><input v-model="role.description" class="min-w-64 rounded-lg border border-gray-200 bg-transparent px-3 py-2 dark:border-gray-700 dark:text-white" /></td>
+            <td class="px-5 py-4"><input v-model="role.description" :disabled="!canManage()" class="min-w-64 rounded-lg border border-gray-200 bg-transparent px-3 py-2 disabled:opacity-60 dark:border-gray-700 dark:text-white" /><div class="mt-3 flex min-w-80 flex-wrap gap-2"><label v-for="permission in permissions" :key="permission.key" class="flex items-center gap-1.5 rounded-lg bg-gray-50 px-2 py-1 text-xs text-gray-600 dark:bg-gray-800 dark:text-gray-300"><input v-model="role.permission_keys" type="checkbox" :value="permission.key" :disabled="!canManage() || role.key === 'admin'" />{{ permission.name }}</label></div></td>
             <td class="px-5 py-4 text-gray-500">{{ role.users_count }}</td>
-            <td class="px-5 py-4"><div class="flex gap-2"><button class="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white" @click="saveRole(role)">Simpan</button><button :disabled="role.system || role.users_count > 0" class="rounded-lg border border-error-200 px-3 py-2 text-xs font-semibold text-error-700 disabled:cursor-not-allowed disabled:opacity-40" @click="deleteRole(role)">Hapus</button></div></td>
+            <td class="px-5 py-4"><div v-if="canManage()" class="flex gap-2"><button class="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white" @click="saveRole(role)">Simpan</button><button :disabled="role.system || role.users_count > 0" class="rounded-lg border border-error-200 px-3 py-2 text-xs font-semibold text-error-700 disabled:cursor-not-allowed disabled:opacity-40" @click="deleteRole(role)">Hapus</button></div><span v-else class="text-xs text-gray-400">View only</span></td>
           </tr></tbody>
         </table>
         <p v-if="!loading && roles.length === 0" class="p-8 text-center text-sm text-gray-500">Belum ada role.</p>

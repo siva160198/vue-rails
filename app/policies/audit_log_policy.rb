@@ -1,11 +1,11 @@
 class AuditLogPolicy < ApplicationPolicy
   def index?
-    user&.admin?
+    user&.can?("audit_logs.view")
   end
 
   class Scope < ApplicationPolicy::Scope
     def resolve
-      user&.admin? ? scope.all : scope.none
+      user&.can?("audit_logs.view") ? scope.all : scope.none
     end
   end
 end

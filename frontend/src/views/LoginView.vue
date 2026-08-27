@@ -39,12 +39,15 @@ async function verifyOtp() {
       method: 'POST',
       body: JSON.stringify({ challenge_token: challengeToken.value, code: code.value }),
     })
-    if (user.role !== 'admin') {
+    if (user.permissions.length === 0) {
       await apiFetch('/api/v1/session', { method: 'DELETE' })
-      error.value = 'Akun ini tidak memiliki akses admin.'
+      error.value = 'Akun ini tidak memiliki permission untuk mengakses admin panel.'
       return
     }
-    await router.push(route.query.redirect || '/admin')
+    const defaultPath = user.permissions.includes('dashboard.view') ? '/admin'
+      : user.permissions.includes('users.view') ? '/admin/users'
+        : user.permissions.includes('roles.view') ? '/admin/roles' : '/admin/audit-logs'
+    await router.push(route.query.redirect || defaultPath)
   } catch (requestError) {
     error.value = requestError.message
   } finally {

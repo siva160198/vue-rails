@@ -11,14 +11,16 @@ class Api::V1::Admin::RolesControllerTest < ActionDispatch::IntegrationTest
 
   test "admin can create, update, and delete an unused custom role" do
     assert_difference("Role.count", 1) do
-      post api_v1_admin_roles_url, params: { key: "support_agent", name: "Support", description: "Membantu pengguna" }, as: :json
+      post api_v1_admin_roles_url, params: { key: "support_agent", name: "Support", description: "Membantu pengguna", permission_keys: [ "users.view" ] }, as: :json
     end
     assert_response :created
     role = Role.find_by!(key: "support_agent")
+    assert_equal [ "users.view" ], role.permission_keys
 
-    patch api_v1_admin_role_url(role), params: { name: "Support Agent" }, as: :json
+    patch api_v1_admin_role_url(role), params: { name: "Support Agent", permission_keys: %w[users.view users.update] }, as: :json
     assert_response :success
     assert_equal "Support Agent", role.reload.name
+    assert_equal %w[users.update users.view], role.permission_keys
 
     assert_difference("Role.count", -1) { delete api_v1_admin_role_url(role) }
     assert_response :no_content

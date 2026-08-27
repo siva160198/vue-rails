@@ -1,0 +1,23 @@
+dashboard_view:
+  key: dashboard.view
+  name: Dashboard
+
+users_view:
+  key: users.view
+  name: Lihat users
+
+users_update:
+  key: users.update
+  name: Ubah users
+
+roles_view:
+  key: roles.view
+  name: Lihat roles
+
+roles_manage:
+  key: roles.manage
+  name: Kelola roles
+
+audit_logs_view:
+  key: audit_logs.view
+  name: Lihat audit logs
