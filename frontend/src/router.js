@@ -1,18 +1,20 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import HomeView from './views/HomeView.vue'
-import LoginView from './views/LoginView.vue'
-import ForgotPasswordView from './views/ForgotPasswordView.vue'
-import ResetPasswordView from './views/ResetPasswordView.vue'
-import RegisterView from './views/RegisterView.vue'
-import AdminView from './views/AdminView.vue'
-import AdminUsersView from './views/AdminUsersView.vue'
-import AdminAuditLogsView from './views/AdminAuditLogsView.vue'
-import AdminRolesView from './views/AdminRolesView.vue'
-import ForbiddenView from './views/ForbiddenView.vue'
-import NotFoundView from './views/NotFoundView.vue'
-import AppErrorView from './views/AppErrorView.vue'
 import { currentUser } from './services/api'
 import { toast } from './services/toast'
+import { finishNavigationLoading, startNavigationLoading } from './services/navigationLoading'
+
+const HomeView = () => import('./views/HomeView.vue')
+const LoginView = () => import('./views/LoginView.vue')
+const ForgotPasswordView = () => import('./views/ForgotPasswordView.vue')
+const ResetPasswordView = () => import('./views/ResetPasswordView.vue')
+const RegisterView = () => import('./views/RegisterView.vue')
+const AdminView = () => import('./views/AdminView.vue')
+const AdminUsersView = () => import('./views/AdminUsersView.vue')
+const AdminAuditLogsView = () => import('./views/AdminAuditLogsView.vue')
+const AdminRolesView = () => import('./views/AdminRolesView.vue')
+const ForbiddenView = () => import('./views/ForbiddenView.vue')
+const NotFoundView = () => import('./views/NotFoundView.vue')
+const AppErrorView = () => import('./views/AppErrorView.vue')
 
 const router = createRouter({
   history: createWebHistory(),
@@ -33,6 +35,7 @@ const router = createRouter({
 })
 
 router.beforeEach(async (to) => {
+  startNavigationLoading()
   if (!to.meta.permission) return true
   const user = await currentUser()
   if (!user) {
@@ -43,7 +46,10 @@ router.beforeEach(async (to) => {
   return true
 })
 
+router.afterEach(() => finishNavigationLoading())
+
 router.onError((error) => {
+  finishNavigationLoading()
   console.error('Vue Router error:', error)
   if (router.currentRoute.value.path !== '/error') router.replace('/error')
 })

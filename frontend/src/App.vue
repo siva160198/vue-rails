@@ -1,10 +1,12 @@
 <script setup>
+import { defineAsyncComponent } from 'vue'
 import { useRoute } from 'vue-router'
-import AppErrorView from './views/AppErrorView.vue'
 import { appError } from './services/errorState'
 import ToastContainer from './components/ToastContainer.vue'
+import NavigationLoader from './components/NavigationLoader.vue'
 
 const route = useRoute()
+const AppErrorView = defineAsyncComponent(() => import('./views/AppErrorView.vue'))
 </script>
 
 <template>
@@ -21,5 +23,6 @@ const route = useRoute()
     <AppErrorView v-if="appError" />
     <RouterView v-else />
     <ToastContainer />
+    <NavigationLoader />
   </div>
 </template>
