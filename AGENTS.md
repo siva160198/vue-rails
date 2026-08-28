@@ -33,6 +33,9 @@ default.
 - Every button that starts an asynchronous operation must use
   `frontend/src/components/AsyncButton.vue`, expose a contextual loading label,
   and remain disabled until the operation finishes. Use per-row loading state for tables.
+- Edit actions must track their original snapshot and keep save buttons disabled
+  until data changes. Create/submit buttons remain disabled until required input is valid.
+  Rails update endpoints must short-circuit no-op writes and must not create audit logs for them.
 - Vue routes are defined in `frontend/src/router.js`.
 - The admin shell is `frontend/src/components/admin/AdminLayout.vue`.
 - Rails routes are defined in `config/routes.rb`.

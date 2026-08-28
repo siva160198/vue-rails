@@ -2,6 +2,10 @@ module Api
   module V1
     module Admin
       class UsersController < ApplicationController
+        rate_limit to: 60, within: 1.minute, only: :update,
+          by: -> { Current.user&.id || request.remote_ip },
+          with: -> { render json: { error: "Terlalu banyak perubahan. Coba lagi sebentar." }, status: :too_many_requests }
+
         def index
           authorize User
           users = policy_scope(User).order(created_at: :desc)
@@ -18,9 +22,10 @@ module Api
           return render_last_admin_error if removes_last_admin?(user, attributes)
 
           previous = user.slice("role", "active")
+          user.assign_attributes(attributes)
+          return render json: { user: user_json(user), unchanged: true } unless user.changed?
+
           User.transaction do
-            user.role = attributes["role"] if attributes.key?("role")
-            user.active = attributes["active"] if attributes.key?("active")
             user.save!
             user.sessions.destroy_all unless user.active?
             AuditLog.record!(

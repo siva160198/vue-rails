@@ -34,4 +34,16 @@ class Api::V1::Admin::RolesControllerTest < ActionDispatch::IntegrationTest
     delete api_v1_admin_role_url(roles(:editor))
     assert_response :forbidden
   end
+
+  test "unchanged role update skips persistence and audit log" do
+    role = roles(:editor)
+    assert_no_changes(-> { role.reload.updated_at }) do
+      assert_no_difference("AuditLog.count") do
+        patch api_v1_admin_role_url(role), params: { name: role.name, description: role.description, permission_keys: role.permission_keys }, as: :json
+      end
+    end
+
+    assert_response :success
+    assert response.parsed_body["unchanged"]
+  end
 end

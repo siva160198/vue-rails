@@ -1,5 +1,5 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
@@ -14,9 +14,23 @@ const challengeToken = ref('')
 const emailHint = ref('')
 const loading = ref(false)
 const resendLoading = ref(false)
+const resendIn = ref(0)
+let cooldownTimer
+const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
+const formValid = computed(() => challengeToken.value ? /^\d{6}$/.test(code.value) : emailValid.value && password.value.length >= 12 && password.value === passwordConfirmation.value)
+
+function startResendCooldown(seconds) {
+  window.clearInterval(cooldownTimer)
+  resendIn.value = Number(seconds) || 0
+  if (resendIn.value <= 0) return
+  cooldownTimer = window.setInterval(() => {
+    resendIn.value -= 1
+    if (resendIn.value <= 0) window.clearInterval(cooldownTimer)
+  }, 1000)
+}
 
 async function register() {
-  if (loading.value) return
+  if (loading.value || !formValid.value) return
   if (password.value !== passwordConfirmation.value) {
     toast.warning('Konfirmasi password tidak cocok.')
     return
@@ -34,6 +48,7 @@ async function register() {
     })
     challengeToken.value = response.challenge_token
     emailHint.value = response.email_hint
+    startResendCooldown(response.resend_in)
     toast.info(`Kode verifikasi telah dikirim ke ${response.email_hint}.`)
   } catch (requestError) {
     toast.error(requestError.message)
@@ -43,7 +58,7 @@ async function register() {
 }
 
 async function verifyOtp() {
-  if (loading.value) return
+  if (loading.value || !formValid.value) return
   loading.value = true
   try {
     await apiFetch('/api/v1/session/verify_otp', {
@@ -59,7 +74,7 @@ async function verifyOtp() {
 }
 
 async function resendOtp() {
-  if (resendLoading.value) return
+  if (resendLoading.value || resendIn.value > 0) return
   resendLoading.value = true
   try {
     const response = await apiFetch('/api/v1/session/resend_otp', {
@@ -68,6 +83,7 @@ async function resendOtp() {
     })
     challengeToken.value = response.challenge_token
     code.value = ''
+    startResendCooldown(response.resend_in)
     toast.info(`Kode baru telah dikirim ke ${response.email_hint}.`)
   } catch (requestError) {
     toast.error(requestError.message)
@@ -75,6 +91,7 @@ async function resendOtp() {
     resendLoading.value = false
   }
 }
+onBeforeUnmount(() => window.clearInterval(cooldownTimer))
 </script>
 
 <template>
@@ -96,11 +113,11 @@ async function resendOtp() {
         <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-bold tracking-[0.45em] outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
       </div>
 
-      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading" :loading-text="challengeToken ? 'Memverifikasi…' : 'Mendaftarkan…'" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">{{ challengeToken ? 'Verifikasi dan masuk' : 'Daftar' }}</AsyncButton>
+      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading || !formValid" :loading-text="challengeToken ? 'Memverifikasi…' : 'Mendaftarkan…'" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">{{ challengeToken ? 'Verifikasi dan masuk' : 'Daftar' }}</AsyncButton>
 
       <div class="mt-5 flex items-center justify-between text-sm">
         <RouterLink to="/login" class="font-medium text-slate-500 hover:text-slate-900">Sudah punya akun?</RouterLink>
-        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading" loading-text="Mengirim…" class="font-semibold text-emerald-600 hover:text-emerald-700" @click="resendOtp">Kirim ulang OTP</AsyncButton>
+        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading || resendIn > 0" loading-text="Mengirim…" class="font-semibold text-emerald-600 hover:text-emerald-700" @click="resendOtp">{{ resendIn > 0 ? `Kirim ulang (${resendIn}s)` : 'Kirim ulang OTP' }}</AsyncButton>
       </div>
     </form>
   </main>

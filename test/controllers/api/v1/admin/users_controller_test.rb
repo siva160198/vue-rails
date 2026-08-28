@@ -25,6 +25,20 @@ class Api::V1::Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal users(:one), AuditLog.last.actor
   end
 
+  test "unchanged user update skips persistence and audit log" do
+    sign_in_as users(:one)
+    target = users(:two)
+
+    assert_no_changes(-> { target.reload.updated_at }) do
+      assert_no_difference("AuditLog.count") do
+        patch api_v1_admin_user_url(target), params: { role: target.role, active: target.active }, as: :json
+      end
+    end
+
+    assert_response :success
+    assert response.parsed_body["unchanged"]
+  end
+
   test "admin cannot update their own access" do
     sign_in_as users(:one)
 

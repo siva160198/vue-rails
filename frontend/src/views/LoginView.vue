@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
@@ -14,14 +14,29 @@ const challengeToken = ref('')
 const emailHint = ref('')
 const loading = ref(false)
 const resendLoading = ref(false)
+const resendIn = ref(0)
+let cooldownTimer
+const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
+const formValid = computed(() => challengeToken.value ? /^\d{6}$/.test(code.value) : emailValid.value && password.value.length > 0)
+
+function startResendCooldown(seconds) {
+  window.clearInterval(cooldownTimer)
+  resendIn.value = Number(seconds) || 0
+  if (resendIn.value <= 0) return
+  cooldownTimer = window.setInterval(() => {
+    resendIn.value -= 1
+    if (resendIn.value <= 0) window.clearInterval(cooldownTimer)
+  }, 1000)
+}
 
 async function login() {
-  if (loading.value) return
+  if (loading.value || !formValid.value) return
   loading.value = true
   try {
     const response = await apiFetch('/api/v1/session', { method: 'POST', body: JSON.stringify({ email_address: email.value, password: password.value }) })
     challengeToken.value = response.challenge_token
     emailHint.value = response.email_hint
+    startResendCooldown(response.resend_in)
     toast.info(`Kode OTP telah dikirim ke ${response.email_hint}.`)
   } catch (requestError) {
     toast.error(requestError.message)
@@ -31,7 +46,7 @@ async function login() {
 }
 
 async function verifyOtp() {
-  if (loading.value) return
+  if (loading.value || !formValid.value) return
   loading.value = true
   try {
     const { user } = await apiFetch('/api/v1/session/verify_otp', {
@@ -55,7 +70,7 @@ async function verifyOtp() {
 }
 
 async function resendOtp() {
-  if (resendLoading.value) return
+  if (resendLoading.value || resendIn.value > 0) return
   resendLoading.value = true
   try {
     const response = await apiFetch('/api/v1/session/resend_otp', {
@@ -64,6 +79,7 @@ async function resendOtp() {
     })
     challengeToken.value = response.challenge_token
     code.value = ''
+    startResendCooldown(response.resend_in)
     toast.info(`Kode OTP baru telah dikirim ke ${response.email_hint}.`)
   } catch (requestError) {
     toast.error(requestError.message)
@@ -73,6 +89,8 @@ async function resendOtp() {
 }
 
 function restartLogin() {
+  window.clearInterval(cooldownTimer)
+  resendIn.value = 0
   challengeToken.value = ''
   code.value = ''
 }
@@ -80,6 +98,7 @@ function restartLogin() {
 onMounted(() => {
   if (route.query.reset === 'success') toast.success('Password berhasil diperbarui. Silakan login.')
 })
+onBeforeUnmount(() => window.clearInterval(cooldownTimer))
 </script>
 
 <template>
@@ -91,16 +110,16 @@ onMounted(() => {
         {{ challengeToken ? `Masukkan kode 6 digit yang dikirim ke ${emailHint}.` : 'Gunakan akun administrator Anda.' }}
       </p>
       <div v-if="!challengeToken" class="mt-8 space-y-5">
-        <label class="block text-sm font-medium">Email<input v-model="email" type="email" autocomplete="email" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
-        <label class="block text-sm font-medium">Password<input v-model="password" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /><RouterLink to="/forgot-password" class="mt-2 block text-right text-xs font-semibold text-emerald-600 hover:text-emerald-700">Lupa kata sandi?</RouterLink></label>
+        <label class="block text-sm font-medium">Email<input v-model="email" :disabled="loading" type="email" autocomplete="email" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none disabled:opacity-60 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
+        <label class="block text-sm font-medium">Password<input v-model="password" :disabled="loading" type="password" autocomplete="current-password" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none disabled:opacity-60 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /><RouterLink to="/forgot-password" class="mt-2 block text-right text-xs font-semibold text-emerald-600 hover:text-emerald-700">Lupa kata sandi?</RouterLink></label>
       </div>
       <div v-else class="mt-8">
-        <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-bold tracking-[0.45em] outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
+        <label class="block text-sm font-medium">Kode OTP<input v-model="code" :disabled="loading" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-bold tracking-[0.45em] outline-none disabled:opacity-60 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
       </div>
-      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading" :loading-text="challengeToken ? 'Memverifikasi…' : 'Masuk…'" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">{{ challengeToken ? 'Verifikasi' : 'Login' }}</AsyncButton>
+      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading || !formValid" :loading-text="challengeToken ? 'Memverifikasi…' : 'Masuk…'" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">{{ challengeToken ? 'Verifikasi' : 'Login' }}</AsyncButton>
       <div v-if="challengeToken" class="mt-5 flex items-center justify-between text-sm">
         <button type="button" :disabled="loading" class="font-medium text-slate-500 hover:text-slate-900 disabled:opacity-50" @click="restartLogin">Kembali</button>
-        <AsyncButton :loading="resendLoading" :disabled="loading" loading-text="Mengirim…" class="font-semibold text-emerald-600 hover:text-emerald-700" @click="resendOtp">Kirim ulang OTP</AsyncButton>
+        <AsyncButton :loading="resendLoading" :disabled="loading || resendIn > 0" loading-text="Mengirim…" class="font-semibold text-emerald-600 hover:text-emerald-700" @click="resendOtp">{{ resendIn > 0 ? `Kirim ulang (${resendIn}s)` : 'Kirim ulang OTP' }}</AsyncButton>
       </div>
       <p v-else class="mt-5 text-center text-sm text-slate-500">Belum punya akun? <RouterLink to="/register" class="font-semibold text-emerald-600 hover:text-emerald-700">Daftar sebagai member</RouterLink></p>
     </form>

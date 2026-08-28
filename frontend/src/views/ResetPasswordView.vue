@@ -1,5 +1,5 @@
 <script setup>
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
@@ -13,6 +13,7 @@ const passwordConfirmation = ref('')
 const state = ref('checking')
 const invalidMessage = ref('')
 const loading = ref(false)
+const formValid = computed(() => password.value.length >= 12 && password.value === passwordConfirmation.value)
 
 onMounted(async () => {
   if (!token) {
@@ -33,7 +34,7 @@ onMounted(async () => {
 })
 
 async function resetPassword() {
-  if (loading.value) return
+  if (loading.value || !formValid.value) return
   if (password.value !== passwordConfirmation.value) {
     toast.warning('Konfirmasi password tidak cocok.')
     return
@@ -62,10 +63,10 @@ async function resetPassword() {
       <p v-if="state === 'checking'" class="mt-6 text-sm text-slate-500">Memverifikasi link reset…</p>
       <form v-else-if="state === 'valid'" class="mt-8" @submit.prevent="resetPassword">
         <div class="space-y-5">
-          <label class="block text-sm font-medium">Password baru<input v-model="password" type="password" autocomplete="new-password" minlength="12" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /><span class="mt-1 block text-xs text-slate-500">Minimal 12 karakter.</span></label>
-          <label class="block text-sm font-medium">Konfirmasi password<input v-model="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
+          <label class="block text-sm font-medium">Password baru<input v-model="password" :disabled="loading" type="password" autocomplete="new-password" minlength="12" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none disabled:opacity-60 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /><span class="mt-1 block text-xs text-slate-500">Minimal 12 karakter.</span></label>
+          <label class="block text-sm font-medium">Konfirmasi password<input v-model="passwordConfirmation" :disabled="loading" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none disabled:opacity-60 focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
         </div>
-        <AsyncButton type="submit" :loading="loading" loading-text="Menyimpan password…" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">Simpan password baru</AsyncButton>
+        <AsyncButton type="submit" :loading="loading" :disabled="!formValid" loading-text="Menyimpan password…" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">Simpan password baru</AsyncButton>
       </form>
       <div v-else class="mt-6">
         <p class="text-sm text-slate-500">{{ invalidMessage }}</p>

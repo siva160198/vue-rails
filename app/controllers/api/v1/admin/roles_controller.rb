@@ -2,6 +2,10 @@ module Api
   module V1
     module Admin
       class RolesController < ApplicationController
+        rate_limit to: 40, within: 1.minute, only: %i[create update destroy],
+          by: -> { Current.user&.id || request.remote_ip },
+          with: -> { render json: { error: "Terlalu banyak perubahan role. Coba lagi sebentar." }, status: :too_many_requests }
+
         PERMISSION_DEPENDENCIES = {
           "users.update" => "users.view",
           "roles.manage" => "roles.view"
@@ -30,9 +34,14 @@ module Api
           role = Role.find(params[:id])
           authorize role
           before = role_snapshot(role)
+          role.assign_attributes(role_params.except(:key, :permission_keys))
+          desired_permission_ids = permissions_for(role).ids.sort
+          unchanged = !role.changed? && role.permission_ids.sort == desired_permission_ids
+          return render json: { role: role_json(role), unchanged: true } if unchanged
+
           Role.transaction do
-            role.update!(role_params.except(:key, :permission_keys))
-            assign_permissions(role)
+            role.save!
+            role.permission_ids = desired_permission_ids
           end
           record_audit("admin.role_updated", role, before: before, after: role_snapshot(role))
           render json: { role: role_json(role) }
@@ -66,9 +75,13 @@ module Api
           end
 
           def assign_permissions(role)
+            role.permissions = permissions_for(role)
+          end
+
+          def permissions_for(role)
             keys = role.key == "admin" ? Permission.pluck(:key) : Array(role_params[:permission_keys])
             keys += keys.filter_map { |key| PERMISSION_DEPENDENCIES[key] }
-            role.permissions = Permission.where(key: keys)
+            Permission.where(key: keys.uniq)
           end
 
           def role_snapshot(role)
