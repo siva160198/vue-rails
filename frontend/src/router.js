@@ -12,6 +12,7 @@ import ForbiddenView from './views/ForbiddenView.vue'
 import NotFoundView from './views/NotFoundView.vue'
 import AppErrorView from './views/AppErrorView.vue'
 import { currentUser } from './services/api'
+import { toast } from './services/toast'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -34,7 +35,10 @@ const router = createRouter({
 router.beforeEach(async (to) => {
   if (!to.meta.permission) return true
   const user = await currentUser()
-  if (!user) return { path: '/login', query: { redirect: to.fullPath } }
+  if (!user) {
+    toast.warning('Silakan login terlebih dahulu untuk mengakses halaman admin.')
+    return { path: '/login', query: { redirect: to.fullPath } }
+  }
   if (!user.permissions.includes(to.meta.permission)) return { path: '/403' }
   return true
 })
