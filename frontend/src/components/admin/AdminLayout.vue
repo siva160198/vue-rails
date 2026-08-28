@@ -2,9 +2,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import {
-  Bell, CalendarDays, ChevronDown, CircleHelp, Compass, LayoutDashboard,
-  LogOut, Map, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plane, ScrollText,
-  Search, Settings, ShieldCheck, Sun, Users, X,
+  Bell, ChevronDown, Compass, LayoutDashboard, LogOut, Menu, Moon,
+  PanelLeftClose, PanelLeftOpen, ScrollText, Search, ShieldCheck, Sun, Users, X,
 } from '@lucide/vue'
 import AsyncButton from '../AsyncButton.vue'
 
@@ -28,9 +27,6 @@ const navigation = [
     ],
   },
   { label: 'Audit logs', icon: ScrollText, to: '/admin/audit-logs', permission: 'audit_logs.view' },
-  { label: 'Trips', icon: Plane },
-  { label: 'Destinations', icon: Map },
-  { label: 'Bookings', icon: CalendarDays },
 ]
 
 const visibleNavigation = computed(() => navigation.flatMap((item) => {
@@ -97,15 +93,7 @@ function toggleUserManagement() {
                 </li>
               </ul>
             </template>
-            <button v-else :title="desktopSidebarOpen ? undefined : item.label" :class="desktopSidebarOpen ? '' : 'lg:justify-center'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5">
-              <component :is="item.icon" :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">{{ item.label }}</span><span :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="ml-auto rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-500 dark:bg-gray-800">Soon</span>
-            </button>
           </li>
-        </ul>
-        <p :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="mb-4 mt-8 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Support</p>
-        <ul class="space-y-2">
-          <li><button title="Settings" :class="desktopSidebarOpen ? '' : 'lg:justify-center'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"><Settings :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">Settings</span></button></li>
-          <li><button title="Help center" :class="desktopSidebarOpen ? '' : 'lg:justify-center'" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5"><CircleHelp :size="20" /><span :class="desktopSidebarOpen ? '' : 'lg:hidden'">Help center</span></button></li>
         </ul>
       </nav>
 
