@@ -3,7 +3,7 @@ module Api
     class SessionsController < ApplicationController
       allow_unauthenticated_access only: %i[create verify_otp resend_otp]
       rate_limit to: 10, within: 3.minutes, only: %i[create verify_otp resend_otp],
-        with: -> { render json: { error: "Terlalu banyak percobaan. Coba lagi nanti." }, status: :too_many_requests }
+        with: -> { render json: { error: I18n.t("auth.rate_limited") }, status: :too_many_requests }
 
       def show
         render json: { user: user_json(Current.user) }
@@ -25,7 +25,7 @@ module Api
           LoginOtpMailer.with(user: user, code: code).verification_code.deliver_now
           render json: challenge_json(challenge), status: :accepted
         else
-          render json: { error: "Email atau password tidak valid." }, status: :unauthorized
+          render json: { error: I18n.t("auth.invalid_credentials") }, status: :unauthorized
         end
       end
 
@@ -43,9 +43,9 @@ module Api
           AuditLog.record!(action: "session.login", actor: challenge.user, auditable: challenge.user, request: request)
           render json: { user: user_json(challenge.user) }, status: :created
         when :invalid
-          render json: { error: "Kode OTP tidak valid." }, status: :unauthorized
+          render json: { error: I18n.t("auth.invalid_otp") }, status: :unauthorized
         when :locked
-          render json: { error: "Terlalu banyak percobaan. Silakan login kembali." }, status: :too_many_requests
+          render json: { error: I18n.t("auth.otp_locked") }, status: :too_many_requests
         else
           render_invalid_challenge
         end
@@ -58,7 +58,7 @@ module Api
         return render_invalid_challenge unless challenge.usable?
 
         unless challenge.resend_available?
-          return render json: { error: "Tunggu 60 detik sebelum mengirim ulang OTP." }, status: :too_many_requests
+          return render json: { error: I18n.t("auth.resend_wait") }, status: :too_many_requests
         end
 
         new_challenge, code = LoginChallenge.issue_for!(challenge.user)
@@ -78,7 +78,7 @@ module Api
         end
 
         def inactive_account_message
-          "Akun Anda nonaktif. Silakan hubungi #{ENV.fetch('SUPPORT_EMAIL', 'example@mail.com')}."
+          I18n.t("auth.inactive", email: ENV.fetch("SUPPORT_EMAIL", "example@mail.com"))
         end
 
         def otp_trusted_for?(user)
@@ -116,7 +116,7 @@ module Api
         end
 
         def render_invalid_challenge
-          render json: { error: "Sesi OTP tidak valid atau sudah kedaluwarsa. Silakan login kembali." }, status: :unauthorized
+          render json: { error: I18n.t("auth.invalid_challenge") }, status: :unauthorized
         end
     end
   end

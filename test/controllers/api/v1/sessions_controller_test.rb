@@ -40,6 +40,15 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "authentication errors follow Accept-Language" do
+    post api_v1_session_url,
+      params: { email_address: users(:one).email_address, password: "wrong" },
+      headers: { "Accept-Language" => "en-US,en;q=0.9" }, as: :json
+
+    assert_response :unauthorized
+    assert_equal "Invalid email or password.", response.parsed_body["error"]
+  end
+
   test "inactive account receives a support contact message after valid credentials" do
     user = users(:two)
     user.update!(active: false)

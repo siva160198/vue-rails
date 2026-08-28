@@ -120,6 +120,13 @@ Store these values in the deployment platform's secret manager, never in Git.
 Public registration is available at `http://localhost:5173/register`. New
 accounts always receive the `member` role, require a password of at least 12
 characters, and must verify their email with OTP before a session is created.
+
+## Languages
+
+The starter uses Rails' built-in I18n and a dependency-free Vue translation
+service. Indonesian is the default and English is selectable from the header.
+Vue sends the saved locale to Rails through `Accept-Language`, so localized API
+responses and the interface use the same language.
 Administrator accounts are created or promoted separately through trusted
 server-side operations such as the development seed.
 

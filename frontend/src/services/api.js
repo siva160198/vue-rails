@@ -1,3 +1,5 @@
+import { locale } from './i18n'
+
 let csrfToken
 
 async function getCsrfToken() {
@@ -10,7 +12,7 @@ async function getCsrfToken() {
 
 export async function apiFetch(path, options = {}) {
   const method = options.method || 'GET'
-  const headers = { Accept: 'application/json', ...options.headers }
+  const headers = { Accept: 'application/json', 'Accept-Language': locale.value, ...options.headers }
 
   if (!['GET', 'HEAD'].includes(method.toUpperCase())) {
     headers['X-CSRF-Token'] = await getCsrfToken()

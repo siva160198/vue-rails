@@ -1,6 +1,7 @@
 class ApplicationController < ActionController::Base
   include Authentication
   include Pundit::Authorization
+  around_action :switch_locale
 
   rescue_from Pundit::NotAuthorizedError do
     render json: { error: "Anda tidak memiliki izin untuk mengakses resource ini." }, status: :forbidden
@@ -10,6 +11,12 @@ class ApplicationController < ActionController::Base
   end
 
   private
+    def switch_locale(&action)
+      requested = request.headers["Accept-Language"].to_s.split(/[-,]/).first
+      locale = I18n.available_locales.map(&:to_s).include?(requested) ? requested : I18n.default_locale
+      I18n.with_locale(locale, &action)
+    end
+
     def pundit_user
       Current.user
     end

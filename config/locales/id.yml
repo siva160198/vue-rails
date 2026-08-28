@@ -1,0 +1,9 @@
+id:
+  auth:
+    rate_limited: "Terlalu banyak percobaan. Coba lagi nanti."
+    invalid_credentials: "Email atau password tidak valid."
+    inactive: "Akun Anda nonaktif. Silakan hubungi %{email}."
+    invalid_otp: "Kode OTP tidak valid."
+    otp_locked: "Terlalu banyak percobaan. Silakan login kembali."
+    resend_wait: "Tunggu 60 detik sebelum mengirim ulang OTP."
+    invalid_challenge: "Sesi OTP tidak valid atau sudah kedaluwarsa. Silakan login kembali."

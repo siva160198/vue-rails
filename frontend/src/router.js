@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { currentUser } from './services/api'
 import { toast } from './services/toast'
 import { finishNavigationLoading, startNavigationLoading } from './services/navigationLoading'
+import { t } from './services/i18n'
 
 const HomeView = () => import('./views/HomeView.vue')
 const LoginView = () => import('./views/LoginView.vue')
@@ -39,7 +40,7 @@ router.beforeEach(async (to) => {
   if (!to.meta.permission) return true
   const user = await currentUser()
   if (!user) {
-    toast.warning('Silakan login terlebih dahulu untuk mengakses halaman admin.')
+    toast.warning(t('auth.login_required'))
     return { path: '/login', query: { redirect: to.fullPath } }
   }
   if (!user.permissions.includes(to.meta.permission)) return { path: '/403' }

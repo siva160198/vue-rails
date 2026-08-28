@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { appError } from './services/errorState'
 import ToastContainer from './components/ToastContainer.vue'
 import NavigationLoader from './components/NavigationLoader.vue'
+import { locale, setLocale, t } from './services/i18n'
 
 const route = useRoute()
 const AppErrorView = defineAsyncComponent(() => import('./views/AppErrorView.vue'))
@@ -15,8 +16,9 @@ const AppErrorView = defineAsyncComponent(() => import('./views/AppErrorView.vue
       <nav class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <RouterLink to="/" class="text-xl font-bold tracking-tight">Tourplan</RouterLink>
         <div class="flex items-center gap-5 text-sm font-medium">
-          <RouterLink to="/" class="hover:text-brand-600">Home</RouterLink>
-          <RouterLink to="/admin" class="hover:text-brand-600">Admin</RouterLink>
+          <RouterLink to="/" class="hover:text-brand-600">{{ t('nav.home') }}</RouterLink>
+          <RouterLink to="/admin" class="hover:text-brand-600">{{ t('nav.admin') }}</RouterLink>
+          <select :value="locale" :aria-label="t('nav.language')" class="rounded-lg px-3 py-1.5 text-sm" @change="setLocale($event.target.value)"><option value="id">ID</option><option value="en">EN</option></select>
         </div>
       </nav>
     </header>

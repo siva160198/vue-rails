@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
 import AsyncButton from '../components/AsyncButton.vue'
+import { t } from '../services/i18n'
 
 const route = useRoute()
 const router = useRouter()
@@ -42,9 +43,9 @@ async function login() {
     emailHint.value = response.email_hint
     startResendCooldown(response.resend_in)
     if (response.account_unverified) {
-      toast.warning(`Akun belum terverifikasi. Kode verifikasi telah dikirim ke ${response.email_hint}.`)
+      toast.warning(t('auth.unverified', { email: response.email_hint }))
     } else {
-      toast.info(`Kode OTP telah dikirim ke ${response.email_hint}.`)
+      toast.info(t('auth.otp_sent', { email: response.email_hint }))
     }
   } catch (requestError) {
     toast.error(requestError.message)
@@ -56,7 +57,7 @@ async function login() {
 async function completeLogin(user) {
   if (user.permissions.length === 0) {
     await apiFetch('/api/v1/session', { method: 'DELETE' })
-    toast.error('Akun ini tidak memiliki permission untuk mengakses admin panel.')
+    toast.error(t('auth.no_permission'))
     return
   }
   const defaultPath = user.permissions.includes('dashboard.view') ? '/admin'
@@ -92,7 +93,7 @@ async function resendOtp() {
     challengeToken.value = response.challenge_token
     code.value = ''
     startResendCooldown(response.resend_in)
-    toast.info(`Kode OTP baru telah dikirim ke ${response.email_hint}.`)
+    toast.info(t('auth.otp_resent', { email: response.email_hint }))
   } catch (requestError) {
     toast.error(requestError.message)
   } finally {
@@ -108,7 +109,7 @@ function restartLogin() {
 }
 
 onMounted(() => {
-  if (route.query.reset === 'success') toast.success('Password berhasil diperbarui. Silakan login.')
+  if (route.query.reset === 'success') toast.success(t('auth.password_updated'))
 })
 onBeforeUnmount(() => window.clearInterval(cooldownTimer))
 </script>
