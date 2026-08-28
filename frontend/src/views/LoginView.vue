@@ -37,7 +37,11 @@ async function login() {
     challengeToken.value = response.challenge_token
     emailHint.value = response.email_hint
     startResendCooldown(response.resend_in)
-    toast.info(`Kode OTP telah dikirim ke ${response.email_hint}.`)
+    if (response.account_unverified) {
+      toast.warning(`Akun belum terverifikasi. Kode verifikasi telah dikirim ke ${response.email_hint}.`)
+    } else {
+      toast.info(`Kode OTP telah dikirim ke ${response.email_hint}.`)
+    }
   } catch (requestError) {
     toast.error(requestError.message)
   } finally {

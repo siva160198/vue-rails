@@ -77,6 +77,7 @@ module Api
         def challenge_json(challenge)
           {
             otp_required: true,
+            account_unverified: !challenge.user.email_verified?,
             challenge_token: challenge.token,
             email_hint: challenge.user.email_address.gsub(/(?<=.).(?=[^@]*?@)/, "*"),
             expires_in: LoginChallenge::LIFETIME.to_i,

@@ -52,6 +52,25 @@ class Api::V1::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "existing unverified account receives a new verification challenge" do
+    user = users(:two)
+    user.update!(email_verified_at: nil)
+
+    assert_no_difference("User.count") do
+      post api_v1_registration_url, params: {
+        email_address: user.email_address.upcase,
+        password: "a-secure-password",
+        password_confirmation: "a-secure-password"
+      }, as: :json
+    end
+
+    assert_response :accepted
+    assert response.parsed_body["account_unverified"]
+    assert response.parsed_body["otp_required"]
+    assert_not_empty response.parsed_body["challenge_token"]
+    assert_equal 1, ActionMailer::Base.deliveries.size
+  end
+
   test "short or mismatched password is rejected" do
     assert_no_difference("User.count") do
       post api_v1_registration_url, params: {

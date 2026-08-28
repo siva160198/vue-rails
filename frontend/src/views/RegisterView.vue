@@ -49,7 +49,11 @@ async function register() {
     challengeToken.value = response.challenge_token
     emailHint.value = response.email_hint
     startResendCooldown(response.resend_in)
-    toast.info(`Kode verifikasi telah dikirim ke ${response.email_hint}.`)
+    if (response.account_unverified) {
+      toast.warning(`Akun sudah terdaftar tetapi belum terverifikasi. Kode verifikasi baru telah dikirim ke ${response.email_hint}.`)
+    } else {
+      toast.info(`Kode verifikasi telah dikirim ke ${response.email_hint}.`)
+    }
   } catch (requestError) {
     toast.error(requestError.message)
   } finally {

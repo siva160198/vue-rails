@@ -40,6 +40,19 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "unverified account is identified and directed to OTP verification" do
+    user = users(:two)
+    user.update!(email_verified_at: nil)
+
+    post api_v1_session_url, params: { email_address: user.email_address, password: "password" }, as: :json
+
+    assert_response :accepted
+    assert response.parsed_body["account_unverified"]
+    assert response.parsed_body["otp_required"]
+    assert_not_empty response.parsed_body["challenge_token"]
+    assert_equal 1, ActionMailer::Base.deliveries.size
+  end
+
   test "invalid OTP is rejected without creating a session" do
     challenge, = LoginChallenge.issue_for!(users(:one))
 
