@@ -54,7 +54,7 @@ async function logout() {
         <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <article v-for="card in cards" :key="card.label" class="rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03]">
             <div class="flex h-12 w-12 items-center justify-center rounded-xl bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-white"><component :is="card.icon" :size="23" /></div>
-            <div class="mt-5 flex items-end justify-between"><div><p class="text-sm text-gray-500">{{ card.label }}</p><p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ card.value }}</p></div><span class="flex items-center gap-1 rounded-full bg-success-50 px-2 py-1 text-xs font-medium text-success-600 dark:bg-success-500/10"><ArrowUpRight v-if="card.trend === 'up'" :size="13" /><ArrowDownRight v-else :size="13" />{{ card.change }}</span></div>
+            <div class="mt-5 flex items-end justify-between"><div><p class="text-sm text-gray-500">{{ card.label }}</p><p class="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{{ card.value }}</p></div><span class="flex items-center gap-1 rounded-full bg-brand-50 px-2 py-1 text-xs font-medium text-brand-600 dark:bg-brand-500/10"><ArrowUpRight v-if="card.trend === 'up'" :size="13" /><ArrowDownRight v-else :size="13" />{{ card.change }}</span></div>
           </article>
         </div>
 
@@ -70,14 +70,14 @@ async function logout() {
           <section class="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-white/[0.03]">
             <h2 class="text-lg font-semibold text-gray-900 dark:text-white">Quick status</h2><p class="mt-1 text-sm text-gray-500">Backend services</p>
             <div class="mt-6 space-y-5">
-              <div v-for="service in ['Rails JSON API', 'PostgreSQL database', 'Native authentication', 'Pundit policies']" :key="service" class="flex items-center justify-between border-b border-gray-100 pb-4 last:border-0 dark:border-gray-800"><div class="flex items-center gap-3"><span class="h-2.5 w-2.5 rounded-full bg-success-500 ring-4 ring-success-50 dark:ring-success-500/10"></span><span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ service }}</span></div><span class="text-xs text-gray-400">Operational</span></div>
+              <div v-for="service in ['Rails JSON API', 'PostgreSQL database', 'Native authentication', 'Pundit policies']" :key="service" class="flex items-center justify-between border-b border-gray-100 pb-4 last:border-0 dark:border-gray-800"><div class="flex items-center gap-3"><span class="h-2.5 w-2.5 rounded-full bg-brand-500 ring-4 ring-brand-50 dark:ring-brand-500/10"></span><span class="text-sm font-medium text-gray-700 dark:text-gray-300">{{ service }}</span></div><span class="text-xs text-gray-400">Operational</span></div>
             </div>
           </section>
         </div>
 
         <section class="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
           <div class="border-b border-gray-200 px-6 py-5 dark:border-gray-800"><h2 class="text-lg font-semibold text-gray-900 dark:text-white">Recent admin activity</h2><p class="mt-1 text-sm text-gray-500">Authentication and system events</p></div>
-          <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/[0.02]"><tr><th class="px-6 py-3">Event</th><th class="px-6 py-3">Account</th><th class="px-6 py-3">Status</th><th class="px-6 py-3">Time</th></tr></thead><tbody><tr class="border-t border-gray-100 dark:border-gray-800"><td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-200">Admin session authenticated</td><td class="px-6 py-4 text-gray-500">{{ dashboard.user.email_address }}</td><td class="px-6 py-4"><span class="rounded-full bg-success-50 px-2.5 py-1 text-xs font-medium text-success-700 dark:bg-success-500/10">Success</span></td><td class="px-6 py-4 text-gray-500">Just now</td></tr></tbody></table></div>
+          <div class="overflow-x-auto"><table class="w-full text-left text-sm"><thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/[0.02]"><tr><th class="px-6 py-3">Event</th><th class="px-6 py-3">Account</th><th class="px-6 py-3">Status</th><th class="px-6 py-3">Time</th></tr></thead><tbody><tr class="border-t border-gray-100 dark:border-gray-800"><td class="px-6 py-4 font-medium text-gray-800 dark:text-gray-200">Admin session authenticated</td><td class="px-6 py-4 text-gray-500">{{ dashboard.user.email_address }}</td><td class="px-6 py-4"><span class="rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600 dark:bg-brand-500/10">Success</span></td><td class="px-6 py-4 text-gray-500">Just now</td></tr></tbody></table></div>
         </section>
       </template>
     </div>

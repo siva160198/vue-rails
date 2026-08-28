@@ -36,6 +36,9 @@ default.
 - Edit actions must track their original snapshot and keep save buttons disabled
   until data changes. Create/submit buttons remain disabled until required input is valid.
   Rails update endpoints must short-circuit no-op writes and must not create audit logs for them.
+- Keep the frontend palette limited to brand blue, neutral gray, and error red.
+  Form controls must inherit the shared Tailwind styling in `frontend/src/style.css`;
+  do not introduce browser-default checkboxes/selects or new accent color families.
 - Vue routes are defined in `frontend/src/router.js`.
 - The admin shell is `frontend/src/components/admin/AdminLayout.vue`.
 - Rails routes are defined in `config/routes.rb`.

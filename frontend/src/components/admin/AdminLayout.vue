@@ -98,8 +98,8 @@ function toggleUserManagement() {
       </nav>
 
       <div :class="desktopSidebarOpen ? 'p-4' : 'lg:flex lg:justify-center lg:p-3'" class="mb-6 rounded-2xl bg-gray-50 dark:bg-white/5">
-        <div :class="desktopSidebarOpen ? '' : 'lg:hidden'"><p class="text-sm font-semibold text-gray-900 dark:text-white">Tourplan API</p><div class="mt-2 flex items-center gap-2 text-xs text-gray-500"><span class="h-2 w-2 rounded-full bg-success-500"></span>All systems operational</div></div>
-        <span v-if="!desktopSidebarOpen" class="hidden h-3 w-3 rounded-full bg-success-500 ring-4 ring-success-50 dark:ring-success-500/10 lg:block" title="All systems operational"></span>
+        <div :class="desktopSidebarOpen ? '' : 'lg:hidden'"><p class="text-sm font-semibold text-gray-900 dark:text-white">Tourplan API</p><div class="mt-2 flex items-center gap-2 text-xs text-gray-500"><span class="h-2 w-2 rounded-full bg-brand-500"></span>All systems operational</div></div>
+        <span v-if="!desktopSidebarOpen" class="hidden h-3 w-3 rounded-full bg-brand-500 ring-4 ring-brand-50 dark:ring-brand-500/10 lg:block" title="All systems operational"></span>
       </div>
     </aside>
 
@@ -118,7 +118,7 @@ function toggleUserManagement() {
         </div>
         <div class="flex items-center gap-3">
           <button class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800" @click="toggleTheme"><Sun v-if="dark" :size="19" /><Moon v-else :size="19" /></button>
-          <button class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"><Bell :size="19" /><span class="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-orange-500 dark:border-gray-900"></span></button>
+          <button class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"><Bell :size="19" /><span class="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-error-700 dark:border-gray-900"></span></button>
           <div class="relative">
             <button class="flex items-center gap-3" @click="profileOpen = !profileOpen">
               <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">A</span>

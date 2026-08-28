@@ -97,27 +97,27 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer))
 <template>
   <main class="flex min-h-[calc(100vh-65px)] items-center justify-center px-6 py-12">
     <form class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60" @submit.prevent="challengeToken ? verifyOtp() : register()">
-      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-emerald-600">Member registration</p>
+      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Member registration</p>
       <h1 class="mt-3 text-3xl font-bold tracking-tight">{{ challengeToken ? 'Verifikasi email' : 'Buat akun' }}</h1>
       <p class="mt-2 text-sm text-slate-500">
         {{ challengeToken ? `Masukkan kode 6 digit yang dikirim ke ${emailHint}.` : 'Daftar sebagai member baru.' }}
       </p>
 
       <div v-if="!challengeToken" class="mt-8 space-y-5">
-        <label class="block text-sm font-medium">Email<input v-model="email" type="email" autocomplete="email" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
-        <label class="block text-sm font-medium">Password<input v-model="password" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /><span class="mt-1 block text-xs text-slate-500">Minimal 12 karakter.</span></label>
-        <label class="block text-sm font-medium">Konfirmasi password<input v-model="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
+        <label class="block text-sm font-medium">Email<input v-model="email" type="email" autocomplete="email" required class="mt-2 w-full rounded-xl px-4 py-3" /></label>
+        <label class="block text-sm font-medium">Password<input v-model="password" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /><span class="mt-1 block text-xs text-slate-500">Minimal 12 karakter.</span></label>
+        <label class="block text-sm font-medium">Konfirmasi password<input v-model="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /></label>
       </div>
 
       <div v-else class="mt-8">
-        <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-bold tracking-[0.45em] outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
+        <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-[0.45em]" /></label>
       </div>
 
-      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading || !formValid" :loading-text="challengeToken ? 'Memverifikasi…' : 'Mendaftarkan…'" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">{{ challengeToken ? 'Verifikasi dan masuk' : 'Daftar' }}</AsyncButton>
+      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading || !formValid" :loading-text="challengeToken ? 'Memverifikasi…' : 'Mendaftarkan…'" class="mt-6 w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white hover:bg-brand-600">{{ challengeToken ? 'Verifikasi dan masuk' : 'Daftar' }}</AsyncButton>
 
       <div class="mt-5 flex items-center justify-between text-sm">
-        <RouterLink to="/login" class="font-medium text-slate-500 hover:text-slate-900">Sudah punya akun?</RouterLink>
-        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading || resendIn > 0" loading-text="Mengirim…" class="font-semibold text-emerald-600 hover:text-emerald-700" @click="resendOtp">{{ resendIn > 0 ? `Kirim ulang (${resendIn}s)` : 'Kirim ulang OTP' }}</AsyncButton>
+        <RouterLink to="/login" class="font-medium text-gray-500 hover:text-gray-900">Sudah punya akun?</RouterLink>
+        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading || resendIn > 0" loading-text="Mengirim…" class="font-semibold text-brand-600 hover:text-brand-500" @click="resendOtp">{{ resendIn > 0 ? `Kirim ulang (${resendIn}s)` : 'Kirim ulang OTP' }}</AsyncButton>
       </div>
     </form>
   </main>
