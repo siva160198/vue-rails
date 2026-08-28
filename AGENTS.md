@@ -76,6 +76,9 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 
 ## Implementation Conventions
 
+- Never run `git push` unless the user explicitly asks to push in the current request.
+  Completing a code change does not imply permission to push. Leave changes in the
+  working tree unless the user also explicitly requests a commit.
 - Keep Rails controllers JSON-only under `/api/v1`.
 - Return JSON errors for API authentication and authorization failures.
 - Use Rails' native authentication flow; do not introduce Devise.
@@ -87,13 +90,38 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 
 ## UI and UX Standards
 
-- Use Tailwind CSS utilities and the existing TailAdmin-style admin shell. Reuse shared
-  components before introducing page-specific variants.
+- TailAdmin is the authoritative design system for every visual asset, page, layout,
+  component, form, table, modal, dropdown, navigation element, icon treatment, loading
+  state, and interaction pattern. Follow the existing TailAdmin template and its reusable
+  components exactly; do not invent an independent design or visual pattern.
+- Before creating or changing UI, inspect the relevant existing TailAdmin component or
+  pattern in this repository and reuse it. If no relevant TailAdmin reference exists,
+  ask the user for direction before designing a new pattern.
+- Whenever a change would introduce or materially change a modal, tell the user before
+  implementing it. Briefly explain the modal's purpose, the TailAdmin modal pattern being
+  followed, its backdrop/interaction behavior, and whether opening or using it makes any
+  server request. Do not silently introduce a modal.
+- Use Tailwind CSS utilities and the existing TailAdmin admin shell. Reuse shared
+  TailAdmin-based components before introducing any page-specific variant.
 - Keep colors restrained to brand blue, neutral gray, and error red. Do not add new
   decorative color families or gradients without an explicit product requirement.
 - Use the shared form-control rules in `frontend/src/style.css` for every input,
   textarea, select, checkbox, and toggle. Controls must support focus, disabled, and
   dark states and must not fall back to browser-default styling.
+- Every select control must use the TailAdmin-style
+  `frontend/src/components/SelectInput.vue` with native Vue `v-model` and the shared flat
+  Lucide chevron. Do not use raw `<select>`, Select2, jQuery, emoji arrows, or custom
+  page-specific select styling.
+- Every tabular data view must use the shared TailAdmin-style
+  `frontend/src/components/DataTable.vue`; do not add plain tables. DataTable views must
+  provide search, sortable columns, page-size selection, pagination, result counts,
+  loading state, empty state, responsive overflow, and both `id`/`en` translations.
+- While a DataTable request is active, show its built-in TailAdmin spinner overlay,
+  set `aria-busy`, dim the table, and block table controls until loading finishes.
+- DataTable API endpoints must use server-side pagination and allow at most 50 rows per
+  request. Load only the active page, debounce remote search, whitelist sortable columns,
+  and never fetch an entire unbounded table up front. Route lazy loading must ensure
+  tables on unopened pages make no request.
 - Use `frontend/src/components/AsyncButton.vue` for every asynchronous action. Show a
   spinner and contextual loading text, disable the button while processing, and prevent
   duplicate submissions.

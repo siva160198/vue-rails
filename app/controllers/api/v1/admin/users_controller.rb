@@ -8,11 +8,15 @@ module Api
 
         def index
           authorize User
-          users = policy_scope(User).order(created_at: :desc)
+          users = policy_scope(User)
           users = users.where("email_address ILIKE ?", "%#{User.sanitize_sql_like(params[:search])}%") if params[:search].present?
-          users = users.limit(100)
+          total = users.count
+          per_page = params.fetch(:per_page, 10).to_i.clamp(5, 50)
+          page = [ params.fetch(:page, 1).to_i, 1 ].max
+          sort = %w[email_address role active email_verified_at created_at].include?(params[:sort]) ? params[:sort] : "created_at"
+          users = users.order(sort => (params[:direction] == "asc" ? :asc : :desc)).offset((page - 1) * per_page).limit(per_page)
 
-          render json: { users: users.map { |user| user_json(user) }, roles: Role.order(:name).pluck(:key, :name).map { |key, name| { key: key, name: name } } }
+          render json: { users: users.map { |user| user_json(user) }, roles: Role.order(:name).pluck(:key, :name).map { |key, name| { key: key, name: name } }, pagination: { total: total } }
         end
 
         def update

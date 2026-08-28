@@ -1,49 +1,104 @@
 <script setup>
-import { onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import AdminLayout from '../components/admin/AdminLayout.vue'
-import { apiFetch, currentUser } from '../services/api'
-import { toast } from '../services/toast'
-import { t } from '../services/i18n'
+import { computed, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
+import AdminLayout from "../components/admin/AdminLayout.vue";
+import { apiFetch, currentUser } from "../services/api";
+import { toast } from "../services/toast";
+import { t } from "../services/i18n";
+import DataTable from "../components/DataTable.vue";
 
-const router = useRouter()
-const admin = ref(null)
-const logs = ref([])
-const logoutLoading = ref(false)
+const router = useRouter();
+const admin = ref(null);
+const logs = ref([]);
+const logoutLoading = ref(false);
+const loading = ref(false);
+const totalLogs = ref(0);
+const columns = computed(() => [
+  { key: "action", label: t("audit.action") },
+  { key: "actor_email", label: t("audit.actor") },
+  { key: "auditable_type", label: t("audit.target") },
+  { key: "ip_address", label: "IP" },
+  { key: "created_at", label: t("audit.time") },
+]);
 
 async function logout() {
-  if (logoutLoading.value) return
-  logoutLoading.value = true
+  if (logoutLoading.value) return;
+  logoutLoading.value = true;
   try {
-    await apiFetch('/api/v1/session', { method: 'DELETE' })
-    await router.push('/login')
+    await apiFetch("/api/v1/session", { method: "DELETE" });
+    await router.push("/login");
   } catch (requestError) {
-    toast.error(requestError.message)
+    toast.error(requestError.message);
   } finally {
-    logoutLoading.value = false
+    logoutLoading.value = false;
   }
 }
 
-onMounted(async () => {
+async function loadLogs(options = { page: 1, per_page: 10 }) {
+  if (loading.value) return;
+  loading.value = true;
   try {
-    admin.value = await currentUser()
-    logs.value = (await apiFetch('/api/v1/admin/audit_logs')).audit_logs
+    const query = new URLSearchParams(Object.entries(options).filter(([, value]) => value !== "")).toString();
+    const response = await apiFetch(`/api/v1/admin/audit_logs?${query}`);
+    logs.value = response.audit_logs;
+    totalLogs.value = response.pagination.total;
   } catch (requestError) {
-    toast.error(requestError.message)
-  }
-})
+    toast.error(requestError.message);
+  } finally { loading.value = false; }
+}
+
+onMounted(async () => {
+  try { admin.value = await currentUser(); }
+  catch (requestError) { toast.error(requestError.message); }
+});
 </script>
 
 <template>
-  <AdminLayout :email="admin?.email_address" :permissions="admin?.permissions" :logout-loading="logoutLoading" @logout="logout">
+  <AdminLayout
+    :email="admin?.email_address"
+    :permissions="admin?.permissions"
+    :logout-loading="logoutLoading"
+    @logout="logout"
+  >
     <div class="mx-auto max-w-[1536px]">
-      <div class="mb-6"><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('audit.title') }}</h1><p class="mt-1 text-sm text-gray-500">{{ t('audit.subtitle') }}</p></div>
-      <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">
-        <table class="w-full text-left text-sm"><thead class="bg-gray-50 text-xs uppercase text-gray-500 dark:bg-white/[0.02]"><tr><th class="px-5 py-3">{{ t('audit.action') }}</th><th class="px-5 py-3">{{ t('audit.actor') }}</th><th class="px-5 py-3">{{ t('audit.target') }}</th><th class="px-5 py-3">IP</th><th class="px-5 py-3">{{ t('audit.time') }}</th></tr></thead>
-          <tbody><tr v-for="log in logs" :key="log.id" class="border-t border-gray-100 dark:border-gray-800"><td class="px-5 py-4 font-medium dark:text-white">{{ log.action }}</td><td class="px-5 py-4 text-gray-500">{{ log.actor_email || 'System' }}</td><td class="px-5 py-4 text-gray-500">{{ log.auditable_type ? `${log.auditable_type} #${log.auditable_id}` : '—' }}</td><td class="px-5 py-4 text-gray-500">{{ log.ip_address || '—' }}</td><td class="px-5 py-4 text-gray-500">{{ new Date(log.created_at).toLocaleString() }}</td></tr></tbody>
-        </table>
-        <p v-if="logs.length === 0" class="p-8 text-center text-sm text-gray-500">{{ t('audit.empty') }}</p>
+      <div class="mb-6">
+        <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
+          {{ t("audit.title") }}
+        </h1>
+        <p class="mt-1 text-sm text-gray-500">{{ t("audit.subtitle") }}</p>
       </div>
+      <DataTable
+        :items="logs"
+        :columns="columns"
+        :loading="loading"
+        :empty-text="t('audit.empty')"
+        server-mode
+        :total="totalLogs"
+        @request="loadLogs"
+        ><template #cell-action="{ item }"
+          ><span class="font-medium dark:text-white">{{
+            item.action
+          }}</span></template
+        ><template #cell-actor_email="{ item }"
+          ><span class="text-gray-500">{{
+            item.actor_email || t("common.system")
+          }}</span></template
+        ><template #cell-auditable_type="{ item }"
+          ><span class="text-gray-500">{{
+            item.auditable_type
+              ? `${item.auditable_type} #${item.auditable_id}`
+              : "—"
+          }}</span></template
+        ><template #cell-ip_address="{ item }"
+          ><span class="text-gray-500">{{
+            item.ip_address || "—"
+          }}</span></template
+        ><template #cell-created_at="{ item }"
+          ><span class="text-gray-500">{{
+            new Date(item.created_at).toLocaleString()
+          }}</span></template
+        ></DataTable
+      >
     </div>
   </AdminLayout>
 </template>

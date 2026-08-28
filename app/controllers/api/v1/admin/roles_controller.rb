@@ -13,8 +13,14 @@ module Api
 
         def index
           authorize Role
-          roles = policy_scope(Role).order(system: :desc, name: :asc)
-          render json: { roles: roles.map { |role| role_json(role) }, permissions: permissions_json }
+          roles = policy_scope(Role)
+          roles = roles.where("name ILIKE :search OR key ILIKE :search OR description ILIKE :search", search: "%#{Role.sanitize_sql_like(params[:search])}%") if params[:search].present?
+          total = roles.count
+          per_page = params.fetch(:per_page, 10).to_i.clamp(5, 50)
+          page = [ params.fetch(:page, 1).to_i, 1 ].max
+          sort = %w[name key description created_at].include?(params[:sort]) ? params[:sort] : "name"
+          roles = roles.order(sort => (params[:direction] == "desc" ? :desc : :asc)).offset((page - 1) * per_page).limit(per_page)
+          render json: { roles: roles.map { |role| role_json(role) }, permissions: permissions_json, pagination: { total: total } }
         end
 
         def create
