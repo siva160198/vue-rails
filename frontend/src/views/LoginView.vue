@@ -34,6 +34,10 @@ async function login() {
   loading.value = true
   try {
     const response = await apiFetch('/api/v1/session', { method: 'POST', body: JSON.stringify({ email_address: email.value, password: password.value }) })
+    if (!response.otp_required) {
+      await completeLogin(response.user)
+      return
+    }
     challengeToken.value = response.challenge_token
     emailHint.value = response.email_hint
     startResendCooldown(response.resend_in)
@@ -49,6 +53,18 @@ async function login() {
   }
 }
 
+async function completeLogin(user) {
+  if (user.permissions.length === 0) {
+    await apiFetch('/api/v1/session', { method: 'DELETE' })
+    toast.error('Akun ini tidak memiliki permission untuk mengakses admin panel.')
+    return
+  }
+  const defaultPath = user.permissions.includes('dashboard.view') ? '/admin'
+    : user.permissions.includes('users.view') ? '/admin/users'
+      : user.permissions.includes('roles.view') ? '/admin/roles' : '/admin/audit-logs'
+  await router.push(route.query.redirect || defaultPath)
+}
+
 async function verifyOtp() {
   if (loading.value || !formValid.value) return
   loading.value = true
@@ -57,15 +73,7 @@ async function verifyOtp() {
       method: 'POST',
       body: JSON.stringify({ challenge_token: challengeToken.value, code: code.value }),
     })
-    if (user.permissions.length === 0) {
-      await apiFetch('/api/v1/session', { method: 'DELETE' })
-      toast.error('Akun ini tidak memiliki permission untuk mengakses admin panel.')
-      return
-    }
-    const defaultPath = user.permissions.includes('dashboard.view') ? '/admin'
-      : user.permissions.includes('users.view') ? '/admin/users'
-        : user.permissions.includes('roles.view') ? '/admin/roles' : '/admin/audit-logs'
-    await router.push(route.query.redirect || defaultPath)
+    await completeLogin(user)
   } catch (requestError) {
     toast.error(requestError.message)
   } finally {

@@ -13,6 +13,12 @@ module Api
         user = User.authenticate_by(params.permit(:email_address, :password))
 
         if user&.active?
+          if otp_trusted_for?(user)
+            start_new_session_for(user)
+            AuditLog.record!(action: "session.login", actor: user, auditable: user, request: request)
+            return render json: { otp_required: false, user: user_json(user) }, status: :created
+          end
+
           challenge, code = LoginChallenge.issue_for!(user)
           LoginOtpMailer.with(user: user, code: code).verification_code.deliver_now
           render json: challenge_json(challenge), status: :accepted
@@ -30,6 +36,7 @@ module Api
           return render json: { error: "Akun tidak aktif." }, status: :forbidden unless challenge.user.active?
 
           challenge.user.update!(email_verified_at: Time.current) unless challenge.user.email_verified?
+          remember_otp_verification_for(challenge.user)
           start_new_session_for(challenge.user)
           AuditLog.record!(action: "session.login", actor: challenge.user, auditable: challenge.user, request: request)
           render json: { user: user_json(challenge.user) }, status: :created
@@ -66,6 +73,23 @@ module Api
       private
         def user_json(user)
           user.as_json(only: %i[id email_address role]).merge(permissions: user.permission_keys)
+        end
+
+        def otp_trusted_for?(user)
+          trusted_user = User.find_signed(cookies[:otp_trust], purpose: :otp_trust)
+          trusted_user == user && user.email_verified?
+        rescue ActiveSupport::MessageVerifier::InvalidSignature
+          false
+        end
+
+        def remember_otp_verification_for(user)
+          cookies[:otp_trust] = {
+            value: user.signed_id(purpose: :otp_trust, expires_in: 1.hour),
+            expires: 1.hour.from_now,
+            httponly: true,
+            same_site: :lax,
+            secure: Rails.env.production?
+          }
         end
 
         def find_challenge

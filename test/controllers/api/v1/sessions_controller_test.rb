@@ -40,6 +40,45 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "verified OTP is trusted in the same browser for one hour" do
+    user = users(:one)
+    challenge, code = LoginChallenge.issue_for!(user)
+
+    post verify_otp_api_v1_session_url,
+      params: { challenge_token: challenge.token, code: code }, as: :json
+    assert_response :created
+
+    delete api_v1_session_url, as: :json
+    ActionMailer::Base.deliveries.clear
+
+    post api_v1_session_url,
+      params: { email_address: user.email_address, password: "password" }, as: :json
+
+    assert_response :created
+    assert_equal false, response.parsed_body["otp_required"]
+    assert_equal user.id, response.parsed_body.dig("user", "id")
+    assert_empty ActionMailer::Base.deliveries
+  end
+
+  test "OTP trust expires after one hour" do
+    user = users(:one)
+    challenge, code = LoginChallenge.issue_for!(user)
+
+    post verify_otp_api_v1_session_url,
+      params: { challenge_token: challenge.token, code: code }, as: :json
+    delete api_v1_session_url, as: :json
+    ActionMailer::Base.deliveries.clear
+
+    travel 61.minutes do
+      post api_v1_session_url,
+        params: { email_address: user.email_address, password: "password" }, as: :json
+
+      assert_response :accepted
+      assert response.parsed_body["otp_required"]
+      assert_equal 1, ActionMailer::Base.deliveries.size
+    end
+  end
+
   test "unverified account is identified and directed to OTP verification" do
     user = users(:two)
     user.update!(email_verified_at: nil)
