@@ -6,6 +6,7 @@ import {
   PanelLeftClose, PanelLeftOpen, ScrollText, Search, ShieldCheck, Sun, Users, X,
 } from '@lucide/vue'
 import AsyncButton from '../AsyncButton.vue'
+import LanguageSwitcher from '../LanguageSwitcher.vue'
 import { t } from '../../services/i18n'
 
 const props = defineProps({ email: { type: String, default: '' }, permissions: { type: Array, default: () => [] }, logoutLoading: { type: Boolean, default: false } })
@@ -120,6 +121,7 @@ function toggleUserManagement() {
         <div class="flex items-center gap-3">
           <button class="flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800" @click="toggleTheme"><Sun v-if="dark" :size="19" /><Moon v-else :size="19" /></button>
           <button class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"><Bell :size="19" /><span class="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-error-700 dark:border-gray-900"></span></button>
+          <LanguageSwitcher />
           <div class="relative">
             <button class="flex items-center gap-3" @click="profileOpen = !profileOpen">
               <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">A</span>
