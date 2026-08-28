@@ -85,6 +85,63 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   project created from this template.
 - Preserve existing user changes and avoid unrelated rewrites.
 
+## UI and UX Standards
+
+- Use Tailwind CSS utilities and the existing TailAdmin-style admin shell. Reuse shared
+  components before introducing page-specific variants.
+- Keep colors restrained to brand blue, neutral gray, and error red. Do not add new
+  decorative color families or gradients without an explicit product requirement.
+- Use the shared form-control rules in `frontend/src/style.css` for every input,
+  textarea, select, checkbox, and toggle. Controls must support focus, disabled, and
+  dark states and must not fall back to browser-default styling.
+- Use `frontend/src/components/AsyncButton.vue` for every asynchronous action. Show a
+  spinner and contextual loading text, disable the button while processing, and prevent
+  duplicate submissions.
+- Disable save/update buttons when the form has no changes. Track original snapshots,
+  avoid no-op API requests, and make Rails update endpoints short-circuit no-op writes.
+- Use global floating toasts for all user feedback. Do not add inline alert boxes.
+  Toasts auto-dismiss, include progress, support confirmation actions, and place the
+  close control at the top-left without overlapping content.
+- Every route is lazy-loaded. Route and language changes use the full-screen navigation
+  loading overlay, which blocks interaction and shows a spinner for at least 250 ms.
+- Use `frontend/src/components/LanguageSwitcher.vue` everywhere a language control is
+  needed. It uses flat SVG flags, not emoji, and its 40x40 circular trigger matches the
+  notification and theme buttons. In the admin header it belongs beside notifications.
+- The desktop sidebar collapses to an icon rail; it must never disappear completely.
+  User and role pages stay grouped under the expandable User Management tree.
+- Use Lucide icons consistently. Prefer simple flat icons and avoid ornamental,
+  AI-styled, emoji, or mismatched icon treatments.
+- User verification status uses check/X icons. User active status uses a toggle switch.
+- Keep 403, 404, and application-error pages available and bilingual.
+
+## Localization Standards
+
+- Indonesian (`id`) is the default language and English (`en`) is mandatory. Every new
+  user-facing string must be added in both languages in the same change.
+- Vue strings use `t()` from `frontend/src/services/i18n.js`; never hardcode labels,
+  placeholders, accessibility text, toast messages, loading text, or error-page copy.
+- Rails user-facing responses and mail copy use Rails I18n with matching keys in
+  `config/locales/id.yml` and `config/locales/en.yml`.
+- Vue persists the locale in `localStorage`, updates the document `lang`, and sends it
+  to Rails through `Accept-Language`. Language switching must not make an extra API call.
+
+## Authentication UX
+
+- The public header contains Home, Admin, and the language switcher; do not add a
+  registration link there. Registration remains reachable from the login page.
+- Opening an admin route while signed out redirects to login, preserves the requested
+  destination, and shows a localized toast explaining that login is required.
+- Login first accepts email/password and then shows a separate verification step when
+  OTP is required. Do not label the login action as sending an OTP.
+- If an existing account is unverified, show a localized toast, issue a new challenge,
+  and take the user directly to verification without creating a duplicate user.
+- A successful OTP verification trusts that browser for one hour using the signed,
+  expiring `otp_trust` cookie. Login during that window must not send another OTP.
+- Inactive users with a correct password receive a localized toast directing them to
+  `SUPPORT_EMAIL`; wrong credentials must not reveal account status.
+- Password recovery is email-link based. The signed reset token must be validated before
+  accepting a new password, and a successful reset revokes all existing sessions.
+
 ## Verification
 
 - Run focused Rails tests while developing, then `bin/rails test` before handoff.
