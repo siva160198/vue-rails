@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { finishNavigationLoading, startNavigationLoading } from './navigationLoading'
 
 const messages = {
   id: {
@@ -36,10 +37,14 @@ const messages = {
 const savedLocale = localStorage.getItem('locale')
 export const locale = ref(savedLocale === 'en' ? 'en' : 'id')
 
-export function setLocale(value) {
-  locale.value = value === 'en' ? 'en' : 'id'
+export function setLocale(value, showLoading = true) {
+  const nextLocale = value === 'en' ? 'en' : 'id'
+  if (nextLocale === locale.value && document.documentElement.lang === nextLocale) return
+  if (showLoading) startNavigationLoading()
+  locale.value = nextLocale
   localStorage.setItem('locale', locale.value)
   document.documentElement.lang = locale.value
+  if (showLoading) finishNavigationLoading()
 }
 
 export function t(key, params = {}) {
@@ -48,4 +53,4 @@ export function t(key, params = {}) {
   return value
 }
 
-setLocale(locale.value)
+setLocale(locale.value, false)

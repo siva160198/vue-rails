@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { locale, setLocale, t } from './i18n'
+import { navigationLoading } from './navigationLoading'
 
 describe('native i18n', () => {
   afterEach(() => setLocale('id'))
@@ -9,6 +10,7 @@ describe('native i18n', () => {
     expect(locale.value).toBe('en')
     expect(localStorage.getItem('locale')).toBe('en')
     expect(document.documentElement.lang).toBe('en')
+    expect(navigationLoading.value).toBe(true)
     expect(t('auth.otp_sent', { email: 'a***@mail.com' })).toContain('a***@mail.com')
   })
 })
