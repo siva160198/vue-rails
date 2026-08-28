@@ -9,6 +9,7 @@ import { toast } from '../services/toast'
 const router = useRouter()
 const dashboard = ref(null)
 const loadFailed = ref(false)
+const logoutLoading = ref(false)
 
 const cards = computed(() => dashboard.value ? [
   { label: 'Total users', value: dashboard.value.metrics.users, change: '+0%', trend: 'up', icon: Users },
@@ -23,17 +24,21 @@ onMounted(async () => {
 })
 
 async function logout() {
+  if (logoutLoading.value) return
+  logoutLoading.value = true
   try {
     await apiFetch('/api/v1/session', { method: 'DELETE' })
     await router.push('/login')
   } catch (requestError) {
     toast.error(requestError.message)
+  } finally {
+    logoutLoading.value = false
   }
 }
 </script>
 
 <template>
-  <AdminLayout :email="dashboard?.user.email_address" :permissions="dashboard?.user.permissions" @logout="logout">
+  <AdminLayout :email="dashboard?.user.email_address" :permissions="dashboard?.user.permissions" :logout-loading="logoutLoading" @logout="logout">
     <div class="mx-auto max-w-[1536px]">
       <div class="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
         <div><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Dashboard</h1><p class="mt-1 text-sm text-gray-500">Overview of your Tourplan workspace</p></div>

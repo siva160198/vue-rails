@@ -3,6 +3,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
+import AsyncButton from '../components/AsyncButton.vue'
 
 const router = useRouter()
 const email = ref('')
@@ -12,8 +13,10 @@ const code = ref('')
 const challengeToken = ref('')
 const emailHint = ref('')
 const loading = ref(false)
+const resendLoading = ref(false)
 
 async function register() {
+  if (loading.value) return
   if (password.value !== passwordConfirmation.value) {
     toast.warning('Konfirmasi password tidak cocok.')
     return
@@ -40,6 +43,7 @@ async function register() {
 }
 
 async function verifyOtp() {
+  if (loading.value) return
   loading.value = true
   try {
     await apiFetch('/api/v1/session/verify_otp', {
@@ -55,7 +59,8 @@ async function verifyOtp() {
 }
 
 async function resendOtp() {
-  loading.value = true
+  if (resendLoading.value) return
+  resendLoading.value = true
   try {
     const response = await apiFetch('/api/v1/session/resend_otp', {
       method: 'POST',
@@ -67,7 +72,7 @@ async function resendOtp() {
   } catch (requestError) {
     toast.error(requestError.message)
   } finally {
-    loading.value = false
+    resendLoading.value = false
   }
 }
 </script>
@@ -91,11 +96,11 @@ async function resendOtp() {
         <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 text-center text-2xl font-bold tracking-[0.45em] outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
       </div>
 
-      <button :disabled="loading" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60">{{ loading ? 'Memproses…' : challengeToken ? 'Verifikasi dan masuk' : 'Daftar' }}</button>
+      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading" :loading-text="challengeToken ? 'Memverifikasi…' : 'Mendaftarkan…'" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">{{ challengeToken ? 'Verifikasi dan masuk' : 'Daftar' }}</AsyncButton>
 
       <div class="mt-5 flex items-center justify-between text-sm">
         <RouterLink to="/login" class="font-medium text-slate-500 hover:text-slate-900">Sudah punya akun?</RouterLink>
-        <button v-if="challengeToken" type="button" :disabled="loading" class="font-semibold text-emerald-600 hover:text-emerald-700 disabled:opacity-50" @click="resendOtp">Kirim ulang OTP</button>
+        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading" loading-text="Mengirim…" class="font-semibold text-emerald-600 hover:text-emerald-700" @click="resendOtp">Kirim ulang OTP</AsyncButton>
       </div>
     </form>
   </main>

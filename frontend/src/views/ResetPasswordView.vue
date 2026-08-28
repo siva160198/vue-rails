@@ -3,6 +3,7 @@ import { onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
+import AsyncButton from '../components/AsyncButton.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -32,6 +33,7 @@ onMounted(async () => {
 })
 
 async function resetPassword() {
+  if (loading.value) return
   if (password.value !== passwordConfirmation.value) {
     toast.warning('Konfirmasi password tidak cocok.')
     return
@@ -63,7 +65,7 @@ async function resetPassword() {
           <label class="block text-sm font-medium">Password baru<input v-model="password" type="password" autocomplete="new-password" minlength="12" required autofocus class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /><span class="mt-1 block text-xs text-slate-500">Minimal 12 karakter.</span></label>
           <label class="block text-sm font-medium">Konfirmasi password<input v-model="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl border border-slate-300 px-4 py-3 outline-none focus:border-emerald-500 focus:ring-4 focus:ring-emerald-100" /></label>
         </div>
-        <button :disabled="loading" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600 disabled:cursor-wait disabled:opacity-60">{{ loading ? 'Menyimpan…' : 'Simpan password baru' }}</button>
+        <AsyncButton type="submit" :loading="loading" loading-text="Menyimpan password…" class="mt-6 w-full rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white hover:bg-emerald-600">Simpan password baru</AsyncButton>
       </form>
       <div v-else class="mt-6">
         <p class="text-sm text-slate-500">{{ invalidMessage }}</p>

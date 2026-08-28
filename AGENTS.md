@@ -30,6 +30,9 @@ default.
 - Frontend API requests go through `frontend/src/services/api.js`.
 - User-facing success, error, warning, and info notifications must use the global
   toast API from `frontend/src/services/toast.js`; do not add page-local alert boxes.
+- Every button that starts an asynchronous operation must use
+  `frontend/src/components/AsyncButton.vue`, expose a contextual loading label,
+  and remain disabled until the operation finishes. Use per-row loading state for tables.
 - Vue routes are defined in `frontend/src/router.js`.
 - The admin shell is `frontend/src/components/admin/AdminLayout.vue`.
 - Rails routes are defined in `config/routes.rb`.

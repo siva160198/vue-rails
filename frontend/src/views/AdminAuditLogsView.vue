@@ -8,13 +8,18 @@ import { toast } from '../services/toast'
 const router = useRouter()
 const admin = ref(null)
 const logs = ref([])
+const logoutLoading = ref(false)
 
 async function logout() {
+  if (logoutLoading.value) return
+  logoutLoading.value = true
   try {
     await apiFetch('/api/v1/session', { method: 'DELETE' })
     await router.push('/login')
   } catch (requestError) {
     toast.error(requestError.message)
+  } finally {
+    logoutLoading.value = false
   }
 }
 
@@ -29,7 +34,7 @@ onMounted(async () => {
 </script>
 
 <template>
-  <AdminLayout :email="admin?.email_address" :permissions="admin?.permissions" @logout="logout">
+  <AdminLayout :email="admin?.email_address" :permissions="admin?.permissions" :logout-loading="logoutLoading" @logout="logout">
     <div class="mx-auto max-w-[1536px]">
       <div class="mb-6"><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Audit logs</h1><p class="mt-1 text-sm text-gray-500">100 aktivitas terbaru yang penting bagi keamanan.</p></div>
       <div class="overflow-x-auto rounded-2xl border border-gray-200 bg-white dark:border-gray-800 dark:bg-white/[0.03]">

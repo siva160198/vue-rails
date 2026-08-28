@@ -6,8 +6,9 @@ import {
   LogOut, Map, Menu, Moon, PanelLeftClose, PanelLeftOpen, Plane, ScrollText,
   Search, Settings, ShieldCheck, Sun, Users, X,
 } from '@lucide/vue'
+import AsyncButton from '../AsyncButton.vue'
 
-const props = defineProps({ email: { type: String, default: '' }, permissions: { type: Array, default: () => [] } })
+const props = defineProps({ email: { type: String, default: '' }, permissions: { type: Array, default: () => [] }, logoutLoading: { type: Boolean, default: false } })
 const emit = defineEmits(['logout'])
 const route = useRoute()
 const sidebarOpen = ref(false)
@@ -138,7 +139,7 @@ function toggleUserManagement() {
             </button>
             <div v-if="profileOpen" class="absolute right-0 mt-3 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
               <div class="border-b border-gray-100 px-2 pb-3 dark:border-gray-800"><p class="text-sm font-medium dark:text-white">Administrator</p><p class="mt-1 truncate text-xs text-gray-500">{{ email }}</p></div>
-              <button class="mt-2 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800" @click="emit('logout')"><LogOut :size="18" />Sign out</button>
+              <AsyncButton :loading="props.logoutLoading" loading-text="Signing out…" class="mt-2 w-full justify-start rounded-lg px-2 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800" @click="emit('logout')"><LogOut :size="18" />Sign out</AsyncButton>
             </div>
           </div>
         </div>
