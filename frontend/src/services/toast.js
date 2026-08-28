@@ -1,4 +1,5 @@
 import { ref } from 'vue'
+import { t } from './i18n'
 
 export const toasts = ref([])
 
@@ -15,7 +16,7 @@ export function showToast(message, type = 'info', options = {}) {
   const toast = {
     id: nextId++,
     type,
-    title: options.title || { success: 'Berhasil', error: 'Terjadi kesalahan', warning: 'Perhatian', info: 'Informasi' }[type],
+    title: options.title || t(`toast.${type}`),
     message,
     createdAt: new Date(),
     duration: options.duration ?? durations[type],
@@ -71,12 +72,12 @@ export function confirmToast(message, options = {}) {
       resolve(value)
     }
     id = showToast(message, 'warning', {
-      title: options.title || 'Konfirmasi tindakan',
+      title: options.title || t('toast.confirm'),
       duration: 0,
       onDismiss: () => finish(false),
       actions: [
-        { label: options.cancelLabel || 'Batal', style: 'secondary', handler: () => finish(false) },
-        { label: options.confirmLabel || 'Lanjutkan', style: 'danger', handler: () => finish(true) },
+        { label: options.cancelLabel || t('toast.cancel'), style: 'secondary', handler: () => finish(false) },
+        { label: options.confirmLabel || t('toast.continue'), style: 'danger', handler: () => finish(true) },
       ],
     })
   })

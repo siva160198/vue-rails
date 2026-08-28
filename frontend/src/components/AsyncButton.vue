@@ -1,11 +1,12 @@
 <script setup>
 import { LoaderCircle } from '@lucide/vue'
+import { t } from '../services/i18n'
 
 defineProps({
   loading: { type: Boolean, default: false },
   disabled: { type: Boolean, default: false },
   type: { type: String, default: 'button' },
-  loadingText: { type: String, default: 'Memproses…' },
+  loadingText: { type: String, default: () => t('common.processing') },
 })
 </script>
 

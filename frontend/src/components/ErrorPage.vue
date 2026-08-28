@@ -1,4 +1,5 @@
 <script setup>
+import { t } from '../services/i18n'
 defineProps({
   code: { type: String, required: true },
   title: { type: String, required: true },
@@ -22,10 +23,10 @@ defineEmits(['retry'])
           class="rounded-xl bg-brand-500 px-5 py-3 text-sm font-semibold text-white hover:bg-brand-600"
           @click="$emit('retry')"
         >
-          Coba lagi
+          {{ t('common.retry') }}
         </button>
         <RouterLink to="/" class="rounded-xl border border-slate-300 bg-white px-5 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-          Kembali ke beranda
+          {{ t('common.back_home') }}
         </RouterLink>
       </div>
     </div>

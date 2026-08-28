@@ -6,6 +6,7 @@ import {
   PanelLeftClose, PanelLeftOpen, ScrollText, Search, ShieldCheck, Sun, Users, X,
 } from '@lucide/vue'
 import AsyncButton from '../AsyncButton.vue'
+import { t } from '../../services/i18n'
 
 const props = defineProps({ email: { type: String, default: '' }, permissions: { type: Array, default: () => [] }, logoutLoading: { type: Boolean, default: false } })
 const emit = defineEmits(['logout'])
@@ -16,20 +17,20 @@ const profileOpen = ref(false)
 const dark = ref(false)
 const userManagementOpen = ref(route.path.startsWith('/admin/users') || route.path.startsWith('/admin/roles'))
 
-const navigation = [
-  { label: 'Dashboard', icon: LayoutDashboard, to: '/admin', permission: 'dashboard.view' },
+const navigation = computed(() => [
+  { label: t('nav.dashboard'), icon: LayoutDashboard, to: '/admin', permission: 'dashboard.view' },
   {
-    label: 'User Management',
+    label: t('nav.user_management'),
     icon: Users,
     children: [
-      { label: 'Users', icon: Users, to: '/admin/users', permission: 'users.view' },
-      { label: 'Roles', icon: ShieldCheck, to: '/admin/roles', permission: 'roles.view' },
+      { label: t('nav.users'), icon: Users, to: '/admin/users', permission: 'users.view' },
+      { label: t('nav.roles'), icon: ShieldCheck, to: '/admin/roles', permission: 'roles.view' },
     ],
   },
-  { label: 'Audit logs', icon: ScrollText, to: '/admin/audit-logs', permission: 'audit_logs.view' },
-]
+  { label: t('nav.audit_logs'), icon: ScrollText, to: '/admin/audit-logs', permission: 'audit_logs.view' },
+])
 
-const visibleNavigation = computed(() => navigation.flatMap((item) => {
+const visibleNavigation = computed(() => navigation.value.flatMap((item) => {
   if (item.permission && !props.permissions.includes(item.permission)) return []
   if (!item.children) return [item]
   const children = item.children.filter((child) => props.permissions.includes(child.permission))
@@ -69,13 +70,13 @@ function toggleUserManagement() {
       <div class="flex h-20 items-center justify-between px-2">
         <RouterLink to="/admin" :class="desktopSidebarOpen ? '' : 'lg:mx-auto'" class="flex items-center gap-3">
           <span class="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500 text-white"><Compass :size="22" /></span>
-          <span :class="desktopSidebarOpen ? '' : 'lg:hidden'"><strong class="block text-xl text-gray-900 dark:text-white">Tourplan</strong><small class="text-gray-400">Admin console</small></span>
+          <span :class="desktopSidebarOpen ? '' : 'lg:hidden'"><strong class="block text-xl text-gray-900 dark:text-white">Tourplan</strong><small class="text-gray-400">{{ t('admin.console') }}</small></span>
         </RouterLink>
         <button class="text-gray-500 lg:hidden" @click="sidebarOpen = false"><X :size="22" /></button>
       </div>
 
       <nav class="mt-6 flex-1 overflow-y-auto">
-        <p :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="mb-4 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">Menu</p>
+        <p :class="desktopSidebarOpen ? '' : 'lg:hidden'" class="mb-4 px-3 text-xs font-medium uppercase tracking-wider text-gray-400">{{ t('admin.menu') }}</p>
         <ul class="space-y-2">
           <li v-for="item in visibleNavigation" :key="item.label">
             <RouterLink v-if="item.to" :to="item.to" :title="desktopSidebarOpen ? undefined : item.label" :class="[route.path === item.to ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5', desktopSidebarOpen ? '' : 'lg:justify-center']" class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium" @click="sidebarOpen = false">
@@ -98,8 +99,8 @@ function toggleUserManagement() {
       </nav>
 
       <div :class="desktopSidebarOpen ? 'p-4' : 'lg:flex lg:justify-center lg:p-3'" class="mb-6 rounded-2xl bg-gray-50 dark:bg-white/5">
-        <div :class="desktopSidebarOpen ? '' : 'lg:hidden'"><p class="text-sm font-semibold text-gray-900 dark:text-white">Tourplan API</p><div class="mt-2 flex items-center gap-2 text-xs text-gray-500"><span class="h-2 w-2 rounded-full bg-brand-500"></span>All systems operational</div></div>
-        <span v-if="!desktopSidebarOpen" class="hidden h-3 w-3 rounded-full bg-brand-500 ring-4 ring-brand-50 dark:ring-brand-500/10 lg:block" title="All systems operational"></span>
+        <div :class="desktopSidebarOpen ? '' : 'lg:hidden'"><p class="text-sm font-semibold text-gray-900 dark:text-white">Tourplan API</p><div class="mt-2 flex items-center gap-2 text-xs text-gray-500"><span class="h-2 w-2 rounded-full bg-brand-500"></span>{{ t('admin.operational') }}</div></div>
+        <span v-if="!desktopSidebarOpen" class="hidden h-3 w-3 rounded-full bg-brand-500 ring-4 ring-brand-50 dark:ring-brand-500/10 lg:block" :title="t('admin.operational')"></span>
       </div>
     </aside>
 
@@ -107,13 +108,13 @@ function toggleUserManagement() {
       <header class="sticky top-0 z-30 flex h-20 items-center justify-between border-b border-gray-200 bg-white px-4 dark:border-gray-800 dark:bg-gray-900 sm:px-6">
         <div class="flex items-center gap-3">
           <button class="flex h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 dark:border-gray-800 lg:hidden" @click="sidebarOpen = true"><Menu :size="20" /></button>
-          <button :aria-label="desktopSidebarOpen ? 'Kecilkan sidebar' : 'Lebarkan sidebar'" :title="desktopSidebarOpen ? 'Kecilkan sidebar' : 'Lebarkan sidebar'" class="hidden h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800 lg:flex" @click="toggleDesktopSidebar">
+          <button :aria-label="t(desktopSidebarOpen ? 'admin.collapse_sidebar' : 'admin.expand_sidebar')" :title="t(desktopSidebarOpen ? 'admin.collapse_sidebar' : 'admin.expand_sidebar')" class="hidden h-10 w-10 items-center justify-center rounded-lg border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800 lg:flex" @click="toggleDesktopSidebar">
             <PanelLeftClose v-if="desktopSidebarOpen" :size="20" />
             <PanelLeftOpen v-else :size="20" />
           </button>
           <div class="relative hidden md:block">
             <Search :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input class="w-72 rounded-lg border border-gray-200 bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none focus:border-brand-400 dark:border-gray-800 dark:text-white" placeholder="Search or type command..." />
+            <input class="w-72 rounded-lg border border-gray-200 bg-transparent py-2.5 pl-10 pr-4 text-sm outline-none focus:border-brand-400 dark:border-gray-800 dark:text-white" :placeholder="t('admin.search')" />
           </div>
         </div>
         <div class="flex items-center gap-3">
@@ -122,12 +123,12 @@ function toggleUserManagement() {
           <div class="relative">
             <button class="flex items-center gap-3" @click="profileOpen = !profileOpen">
               <span class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400">A</span>
-              <span class="hidden text-left md:block"><strong class="block max-w-40 truncate text-sm text-gray-700 dark:text-gray-200">Administrator</strong><small class="text-gray-400">{{ email }}</small></span>
+              <span class="hidden text-left md:block"><strong class="block max-w-40 truncate text-sm text-gray-700 dark:text-gray-200">{{ t('admin.administrator') }}</strong><small class="text-gray-400">{{ email }}</small></span>
               <ChevronDown :size="16" class="hidden text-gray-400 md:block" />
             </button>
             <div v-if="profileOpen" class="absolute right-0 mt-3 w-64 rounded-xl border border-gray-200 bg-white p-3 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
-              <div class="border-b border-gray-100 px-2 pb-3 dark:border-gray-800"><p class="text-sm font-medium dark:text-white">Administrator</p><p class="mt-1 truncate text-xs text-gray-500">{{ email }}</p></div>
-              <AsyncButton :loading="props.logoutLoading" loading-text="Signing out…" class="mt-2 w-full justify-start rounded-lg px-2 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800" @click="emit('logout')"><LogOut :size="18" />Sign out</AsyncButton>
+              <div class="border-b border-gray-100 px-2 pb-3 dark:border-gray-800"><p class="text-sm font-medium dark:text-white">{{ t('admin.administrator') }}</p><p class="mt-1 truncate text-xs text-gray-500">{{ email }}</p></div>
+              <AsyncButton :loading="props.logoutLoading" :loading-text="t('admin.signing_out')" class="mt-2 w-full justify-start rounded-lg px-2 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800" @click="emit('logout')"><LogOut :size="18" />{{ t('admin.sign_out') }}</AsyncButton>
             </div>
           </div>
         </div>

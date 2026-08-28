@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
 import AsyncButton from '../components/AsyncButton.vue'
+import { t } from '../services/i18n'
 
 const router = useRouter()
 const email = ref('')
@@ -32,7 +33,7 @@ function startResendCooldown(seconds) {
 async function register() {
   if (loading.value || !formValid.value) return
   if (password.value !== passwordConfirmation.value) {
-    toast.warning('Konfirmasi password tidak cocok.')
+    toast.warning(t('auth.password_mismatch'))
     return
   }
 
@@ -101,27 +102,27 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer))
 <template>
   <main class="flex min-h-[calc(100vh-65px)] items-center justify-center px-6 py-12">
     <form class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60" @submit.prevent="challengeToken ? verifyOtp() : register()">
-      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">Member registration</p>
-      <h1 class="mt-3 text-3xl font-bold tracking-tight">{{ challengeToken ? 'Verifikasi email' : 'Buat akun' }}</h1>
+      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">{{ t('auth.registration') }}</p>
+      <h1 class="mt-3 text-3xl font-bold tracking-tight">{{ t(challengeToken ? 'auth.verify_email' : 'auth.register_title') }}</h1>
       <p class="mt-2 text-sm text-slate-500">
-        {{ challengeToken ? `Masukkan kode 6 digit yang dikirim ke ${emailHint}.` : 'Daftar sebagai member baru.' }}
+        {{ challengeToken ? t('auth.otp_hint', { email: emailHint }) : t('auth.register_hint') }}
       </p>
 
       <div v-if="!challengeToken" class="mt-8 space-y-5">
         <label class="block text-sm font-medium">Email<input v-model="email" type="email" autocomplete="email" required class="mt-2 w-full rounded-xl px-4 py-3" /></label>
-        <label class="block text-sm font-medium">Password<input v-model="password" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /><span class="mt-1 block text-xs text-slate-500">Minimal 12 karakter.</span></label>
-        <label class="block text-sm font-medium">Konfirmasi password<input v-model="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /></label>
+        <label class="block text-sm font-medium">{{ t('auth.password') }}<input v-model="password" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /><span class="mt-1 block text-xs text-slate-500">{{ t('auth.password_min') }}</span></label>
+        <label class="block text-sm font-medium">{{ t('auth.confirm_password') }}<input v-model="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /></label>
       </div>
 
       <div v-else class="mt-8">
         <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-[0.45em]" /></label>
       </div>
 
-      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading || !formValid" :loading-text="challengeToken ? 'Memverifikasi…' : 'Mendaftarkan…'" class="mt-6 w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white hover:bg-brand-600">{{ challengeToken ? 'Verifikasi dan masuk' : 'Daftar' }}</AsyncButton>
+      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading || !formValid" :loading-text="t(challengeToken ? 'auth.verifying' : 'auth.registering')" class="mt-6 w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white hover:bg-brand-600">{{ t(challengeToken ? 'auth.verify_and_login' : 'auth.register') }}</AsyncButton>
 
       <div class="mt-5 flex items-center justify-between text-sm">
-        <RouterLink to="/login" class="font-medium text-gray-500 hover:text-gray-900">Sudah punya akun?</RouterLink>
-        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading || resendIn > 0" loading-text="Mengirim…" class="font-semibold text-brand-600 hover:text-brand-500" @click="resendOtp">{{ resendIn > 0 ? `Kirim ulang (${resendIn}s)` : 'Kirim ulang OTP' }}</AsyncButton>
+        <RouterLink to="/login" class="font-medium text-gray-500 hover:text-gray-900">{{ t('auth.have_account') }}</RouterLink>
+        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading || resendIn > 0" :loading-text="t('auth.resending')" class="font-semibold text-brand-600 hover:text-brand-500" @click="resendOtp">{{ resendIn > 0 ? t('auth.resend_countdown', { seconds: resendIn }) : t('auth.resend') }}</AsyncButton>
       </div>
     </form>
   </main>

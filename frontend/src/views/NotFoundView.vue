@@ -1,11 +1,12 @@
 <script setup>
 import ErrorPage from '../components/ErrorPage.vue'
+import { t } from '../services/i18n'
 </script>
 
 <template>
   <ErrorPage
     code="404"
-    title="Halaman tidak ditemukan"
-    message="Alamat yang Anda buka tidak tersedia, sudah dipindahkan, atau mungkin salah ditulis."
+    :title="t('error.404_title')"
+    :message="t('error.404_message')"
   />
 </template>

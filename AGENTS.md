@@ -30,8 +30,10 @@ default.
 - Authentication helpers are in `app/controllers/concerns/authentication.rb`.
 - Vue application code is under `frontend/src`.
 - Frontend API requests go through `frontend/src/services/api.js`.
-- User-facing Vue strings must use `t()` from `frontend/src/services/i18n.js` and
-  Rails responses must use locale keys under `config/locales`; do not hardcode new UI messages.
+- Every new user-facing feature must ship Indonesian and English translations together.
+  Vue strings must use `t()` from `frontend/src/services/i18n.js`, and Rails responses
+  must use matching locale keys under both `config/locales/id.yml` and `en.yml`;
+  do not hardcode new UI messages.
 - User-facing success, error, warning, and info notifications must use the global
   toast API from `frontend/src/services/toast.js`; do not add page-local alert boxes.
 - Every button that starts an asynchronous operation must use

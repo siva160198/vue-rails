@@ -6,6 +6,7 @@ import { apiFetch, currentUser } from '../services/api'
 import { confirmToast, toast } from '../services/toast'
 import AsyncButton from '../components/AsyncButton.vue'
 import { hasChanges, snapshot } from '../services/changeTracking'
+import { t } from '../services/i18n'
 
 const router = useRouter()
 const admin = ref(null)
@@ -48,7 +49,7 @@ async function createRole() {
   try {
     await apiFetch('/api/v1/admin/roles', { method: 'POST', body: JSON.stringify(form) })
     Object.assign(form, { key: '', name: '', description: '', permission_keys: [] })
-    toast.success('Role baru berhasil dibuat.')
+    toast.success(t('roles.created'))
     await loadRoles()
   } catch (requestError) {
     toast.error(requestError.message)
@@ -67,7 +68,7 @@ async function saveRole(role) {
     })
     Object.assign(role, response.role)
     roleSnapshots.value = new Map(roleSnapshots.value).set(role.id, snapshot(roleState(role)))
-    toast.success(`${role.name} berhasil diperbarui.`)
+    toast.success(t('roles.updated', { name: role.name }))
   } catch (requestError) {
     toast.error(requestError.message)
   } finally {
@@ -79,12 +80,12 @@ async function saveRole(role) {
 
 async function deleteRole(role) {
   if (deletingRoleIds.value.has(role.id)) return
-  if (!await confirmToast(`Role ${role.name} akan dihapus permanen.`, { confirmLabel: 'Hapus' })) return
+  if (!await confirmToast(t('roles.confirm_delete', { name: role.name }), { confirmLabel: t('common.delete') })) return
   deletingRoleIds.value = new Set(deletingRoleIds.value).add(role.id)
   try {
     await apiFetch(`/api/v1/admin/roles/${role.id}`, { method: 'DELETE' })
     roles.value = roles.value.filter((item) => item.id !== role.id)
-    toast.success(`${role.name} berhasil dihapus.`)
+    toast.success(t('roles.deleted', { name: role.name }))
   } catch (requestError) {
     toast.error(requestError.message)
   } finally {
@@ -120,7 +121,7 @@ onMounted(async () => {
 <template>
   <AdminLayout :email="admin?.email_address" :permissions="admin?.permissions" :logout-loading="logoutLoading" @logout="logout">
     <div class="mx-auto max-w-[1536px]">
-      <div class="mb-6"><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">Role management</h1><p class="mt-1 text-sm text-gray-500">Buat role dan gunakan role tersebut pada user management.</p></div>
+      <div class="mb-6"><h1 class="text-2xl font-semibold text-gray-900 dark:text-white">{{ t('roles.title') }}</h1><p class="mt-1 text-sm text-gray-500">{{ t('roles.subtitle') }}</p></div>
 
       <form v-if="canManage()" class="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2" @submit.prevent="createRole">
         <div><label class="mb-2 block text-sm font-medium dark:text-white">Nama role</label><input v-model="form.name" :disabled="creating" required class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm disabled:opacity-60 dark:border-gray-700 dark:text-white" placeholder="Contoh: Editor" /></div>
