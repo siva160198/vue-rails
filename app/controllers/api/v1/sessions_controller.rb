@@ -12,7 +12,9 @@ module Api
       def create
         user = User.authenticate_by(params.permit(:email_address, :password))
 
-        if user&.active?
+        if user && !user.active?
+          render json: { error: inactive_account_message }, status: :forbidden
+        elsif user
           if otp_trusted_for?(user)
             start_new_session_for(user)
             AuditLog.record!(action: "session.login", actor: user, auditable: user, request: request)
@@ -33,7 +35,7 @@ module Api
 
         case challenge.verify(params[:code])
         when :verified
-          return render json: { error: "Akun tidak aktif." }, status: :forbidden unless challenge.user.active?
+          return render json: { error: inactive_account_message }, status: :forbidden unless challenge.user.active?
 
           challenge.user.update!(email_verified_at: Time.current) unless challenge.user.email_verified?
           remember_otp_verification_for(challenge.user)
@@ -73,6 +75,10 @@ module Api
       private
         def user_json(user)
           user.as_json(only: %i[id email_address role]).merge(permissions: user.permission_keys)
+        end
+
+        def inactive_account_message
+          "Akun Anda nonaktif. Silakan hubungi #{ENV.fetch('SUPPORT_EMAIL', 'example@mail.com')}."
         end
 
         def otp_trusted_for?(user)

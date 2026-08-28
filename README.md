@@ -103,6 +103,7 @@ For production, configure an SMTP provider with:
 
 ```sh
 MAILER_FROM=no-reply@example.com
+SUPPORT_EMAIL=example@mail.com
 SMTP_ADDRESS=smtp.example.com
 SMTP_PORT=587
 SMTP_USERNAME=your-username
@@ -112,6 +113,7 @@ SMTP_STARTTLS_AUTO=true
 ```
 
 Store these values in the deployment platform's secret manager, never in Git.
+`SUPPORT_EMAIL` is shown to users whose account has been disabled.
 
 ## Member registration
 

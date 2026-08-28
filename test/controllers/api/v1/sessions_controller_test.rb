@@ -40,6 +40,29 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "inactive account receives a support contact message after valid credentials" do
+    user = users(:two)
+    user.update!(active: false)
+
+    post api_v1_session_url,
+      params: { email_address: user.email_address, password: "password" }, as: :json
+
+    assert_response :forbidden
+    assert_equal "Akun Anda nonaktif. Silakan hubungi example@mail.com.", response.parsed_body["error"]
+    assert_empty ActionMailer::Base.deliveries
+  end
+
+  test "inactive account with wrong password does not reveal its status" do
+    user = users(:two)
+    user.update!(active: false)
+
+    post api_v1_session_url,
+      params: { email_address: user.email_address, password: "wrong" }, as: :json
+
+    assert_response :unauthorized
+    assert_equal "Email atau password tidak valid.", response.parsed_body["error"]
+  end
+
   test "verified OTP is trusted in the same browser for one hour" do
     user = users(:one)
     challenge, code = LoginChallenge.issue_for!(user)

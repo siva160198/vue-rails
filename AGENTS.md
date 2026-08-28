@@ -93,7 +93,8 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 ## Important Behavior
 
 - Authentication uses a signed `session_id` cookie and CSRF protection.
-- A session is created only after password authentication and successful email OTP verification.
+- A session is created after password authentication and successful email OTP verification;
+  the verified browser may skip OTP for one hour.
 - Public registration can only create `member` users; never permit a client-supplied role.
 - Successful password resets must revoke all existing sessions for the user.
 - Disabling a user revokes their sessions; admins cannot update their own access.
