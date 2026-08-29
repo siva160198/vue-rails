@@ -1,4 +1,5 @@
 require "active_support/core_ext/integer/time"
+require Rails.root.join("lib/structured_log_formatter")
 
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
@@ -22,7 +23,7 @@ Rails.application.configure do
   # config.asset_host = "http://assets.example.com"
 
   # Store uploaded files on the local file system (see config/storage.yml for options).
-  config.active_storage.service = :local
+  config.active_storage.service = ENV["S3_BUCKET"].present? ? :s3 : :local
 
   # Assume all access to the app is happening through a SSL-terminating reverse proxy.
   config.assume_ssl = ENV.fetch("ASSUME_SSL", "true") == "true"
@@ -35,7 +36,9 @@ Rails.application.configure do
 
   # Log to STDOUT with the current request id as a default log tag.
   config.log_tags = [ :request_id ]
-  config.logger   = ActiveSupport::TaggedLogging.logger(STDOUT)
+  structured_logger = ActiveSupport::Logger.new(STDOUT)
+  structured_logger.formatter = StructuredLogFormatter.new
+  config.logger = ActiveSupport::TaggedLogging.new(structured_logger)
 
   # Change to "debug" to log everything (including potentially personally-identifiable information!).
   config.log_level = ENV.fetch("RAILS_LOG_LEVEL", "info")
@@ -58,7 +61,7 @@ Rails.application.configure do
   # config.action_mailer.raise_delivery_errors = false
 
   # Set host to be used by links generated in mailer templates.
-  config.action_mailer.default_url_options = { host: "example.com" }
+  config.action_mailer.default_url_options = { host: ENV.fetch("APP_HOST", "example.com"), protocol: "https" }
 
   if ENV["SMTP_ADDRESS"].present?
     config.action_mailer.delivery_method = :smtp
@@ -71,12 +74,6 @@ Rails.application.configure do
       authentication: ENV.fetch("SMTP_AUTHENTICATION", "plain"),
       enable_starttls_auto: ENV.fetch("SMTP_STARTTLS_AUTO", "true") == "true"
     }
-  end
-
-  config.after_initialize do
-    if ENV["SMTP_ADDRESS"].blank? && ENV["SECRET_KEY_BASE_DUMMY"].blank?
-      raise "SMTP_ADDRESS is required in production because authentication sends email"
-    end
   end
 
   # Enable locale fallbacks for I18n (makes lookups for any locale fall back to

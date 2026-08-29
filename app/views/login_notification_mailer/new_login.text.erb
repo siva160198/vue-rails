@@ -1,0 +1,8 @@
+<%= t("mailers.login_notification.title") %>
+
+<%= t("mailers.login_notification.intro") %>
+IP: <%= @session.ip_address.presence || "—" %>
+<%= t("mailers.login_notification.device") %>: <%= @session.user_agent.presence || "—" %>
+<%= t("mailers.login_notification.time") %>: <%= l(@session.created_at, format: :long) %>
+
+<%= t("mailers.login_notification.warning") %>

@@ -7,6 +7,15 @@ class Api::V1::Admin::RolesControllerTest < ActionDispatch::IntegrationTest
     get api_v1_admin_roles_url
     assert_response :success
     assert_includes response.parsed_body.fetch("roles").pluck("key"), "admin"
+    assert_equal %w[page per_page total total_pages], response.parsed_body.fetch("pagination").keys.sort
+  end
+
+  test "admin lazily loads one role with permissions for the edit modal" do
+    get api_v1_admin_role_url(roles(:editor)), as: :json
+
+    assert_response :success
+    assert_equal roles(:editor).key, response.parsed_body.dig("role", "key")
+    assert_includes response.parsed_body.fetch("permissions").pluck("key"), "roles.view"
   end
 
   test "admin can create, update, and delete an unused custom role" do
@@ -45,5 +54,32 @@ class Api::V1::Admin::RolesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert response.parsed_body["unchanged"]
+  end
+
+  test "role mutations require their matching granular permission" do
+    actor = users(:two)
+    actor.update!(role: roles(:editor).key)
+    target = Role.create!(key: "temporary_role", name: "Temporary")
+
+    roles(:editor).permissions = [ permissions(:roles_view) ]
+    sign_in_as actor
+    post api_v1_admin_roles_url, params: { key: "blocked_role", name: "Blocked" }, as: :json
+    assert_response :forbidden
+    patch api_v1_admin_role_url(target), params: { name: "Blocked update" }, as: :json
+    assert_response :forbidden
+    delete api_v1_admin_role_url(target), as: :json
+    assert_response :forbidden
+
+    roles(:editor).permissions = [ permissions(:roles_view), permissions(:roles_create) ]
+    post api_v1_admin_roles_url, params: { key: "allowed_role", name: "Allowed" }, as: :json
+    assert_response :created
+
+    roles(:editor).permissions = [ permissions(:roles_view), permissions(:roles_update) ]
+    patch api_v1_admin_role_url(target), params: { name: "Updated" }, as: :json
+    assert_response :success
+
+    roles(:editor).permissions = [ permissions(:roles_view), permissions(:roles_delete) ]
+    delete api_v1_admin_role_url(target), as: :json
+    assert_response :no_content
   end
 end

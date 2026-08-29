@@ -2,8 +2,8 @@
 # check=error=true
 
 # This Dockerfile is designed for production, not development. Use with Kamal or build'n'run by hand:
-# docker build -t tourplan .
-# docker run -d -p 80:80 -e RAILS_MASTER_KEY=<value from config/master.key> --name tourplan tourplan
+# docker build -t vue_rails .
+# docker run -d -p 80:80 -e RAILS_MASTER_KEY=<value from config/master.key> --name vue_rails vue_rails
 
 # For a containerized dev environment, see Dev Containers: https://guides.rubyonrails.org/getting_started_with_devcontainer.html
 
@@ -30,6 +30,15 @@ ENV RAILS_ENV="production" \
 
 # Build the Vue frontend separately so Node is not included in the final image.
 FROM docker.io/library/node:$NODE_VERSION-bookworm-slim AS frontend-build
+
+ARG VITE_SENTRY_DSN
+ARG VITE_SENTRY_TRACES_SAMPLE_RATE=0
+ARG VITE_APP_ENV=production
+ARG VITE_APP_RELEASE
+ENV VITE_SENTRY_DSN=$VITE_SENTRY_DSN \
+    VITE_SENTRY_TRACES_SAMPLE_RATE=$VITE_SENTRY_TRACES_SAMPLE_RATE \
+    VITE_APP_ENV=$VITE_APP_ENV \
+    VITE_APP_RELEASE=$VITE_APP_RELEASE
 
 WORKDIR /frontend
 COPY frontend/package.json frontend/package-lock.json ./
@@ -87,4 +96,6 @@ ENTRYPOINT ["/rails/bin/docker-entrypoint"]
 
 # Start server via Thruster by default, this can be overwritten at runtime
 EXPOSE 80
+HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
+  CMD curl --fail --silent http://127.0.0.1/up > /dev/null || exit 1
 CMD ["./bin/thrust", "./bin/rails", "server"]

@@ -1,0 +1,31 @@
+#!/usr/bin/env ruby
+require_relative "../config/application"
+
+name = ARGV.shift.to_s
+abort "Usage: bin/generate_admin_resource plural_resource" unless name.match?(/\A[a-z][a-z0-9_]*\z/) && name.pluralize == name
+
+singular = name.singularize
+class_name = singular.camelize
+permission = "#{name}.view"
+targets = [
+  "app/controllers/api/v1/admin/#{name}_controller.rb",
+  "app/policies/#{singular}_policy.rb",
+  "frontend/src/views/Admin#{class_name.pluralize}View.vue",
+  "test/controllers/api/v1/admin/#{name}_controller_test.rb"
+]
+existing = targets.select { |target| File.exist?(Rails.root.join(target)) }
+abort "Refusing to overwrite: #{existing.join(', ')}" if existing.any?
+
+puts <<~OUTPUT
+  Resource name validated: #{name}
+  Generate these files using the documented TailAdmin contract:
+  #{targets.map { |target| "- #{target}" }.join("\n")}
+
+  Required integration points:
+  - add resources :#{name} under /api/v1/admin
+  - add #{permission} and supported mutation permissions through an idempotent migration
+  - add seeds, fixtures, Pundit tests, OpenAPI schemas, id/en translations, lazy Vue route and menu
+  - use ApiPagination, DataTable, useServerTable, AppModal lazy detail, shared forms and toasts
+
+  This command intentionally does not generate guessed business fields or overwrite shared registries.
+OUTPUT

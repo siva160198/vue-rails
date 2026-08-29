@@ -49,6 +49,8 @@ class Api::V1::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
+    assert_api_error "VALIDATION_FAILED"
+    assert response.parsed_body.dig("error", "details").present?
     assert_empty ActionMailer::Base.deliveries
   end
 
@@ -81,6 +83,8 @@ class Api::V1::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     end
 
     assert_response :unprocessable_content
+    assert_api_error "VALIDATION_FAILED"
+    assert response.parsed_body.dig("error", "details").present?
     assert_empty ActionMailer::Base.deliveries
   end
 end

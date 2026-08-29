@@ -14,7 +14,7 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   reporter: process.env.CI ? 'github' : 'list',
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL: 'http://127.0.0.1:5273',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -24,13 +24,16 @@ export default defineConfig({
   webServer: [
     {
       name: 'rails',
-      command: 'bin/rails db:prepare && bin/rails runner test/e2e/setup.rb && bin/rails server -p 3000',
+      command: 'bin/rails db:prepare db:seed && bin/rails runner test/e2e/setup.rb && bin/rails server -p 3100',
       cwd: railsDirectory,
-      url: 'http://127.0.0.1:3000/up',
-      reuseExistingServer: !process.env.CI,
+      url: 'http://127.0.0.1:3100/up',
+      reuseExistingServer: false,
       timeout: 120_000,
       env: {
         ...process.env,
+        RAILS_ENV: 'test',
+        E2E: 'true',
+        FRONTEND_URL: 'http://127.0.0.1:5273',
         ADMIN_EMAIL: adminEmail,
         ADMIN_PASSWORD: adminPassword,
         E2E_ADMIN_EMAIL: adminEmail,
@@ -39,11 +42,12 @@ export default defineConfig({
     },
     {
       name: 'vite',
-      command: 'npm run dev -- --host 127.0.0.1',
+      command: 'npm run dev -- --host 127.0.0.1 --port 5273',
       cwd: frontendDirectory,
-      url: 'http://127.0.0.1:5173',
-      reuseExistingServer: !process.env.CI,
+      url: 'http://127.0.0.1:5273',
+      reuseExistingServer: false,
       timeout: 120_000,
+      env: { ...process.env, VITE_RAILS_URL: 'http://127.0.0.1:3100' },
     },
   ],
 })

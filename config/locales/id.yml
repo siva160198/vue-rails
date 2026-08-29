@@ -1,9 +1,39 @@
 id:
-  auth:
-    rate_limited: "Terlalu banyak percobaan. Coba lagi nanti."
-    invalid_credentials: "Email atau password tidak valid."
-    inactive: "Akun Anda nonaktif. Silakan hubungi %{email}."
-    invalid_otp: "Kode OTP tidak valid."
-    otp_locked: "Terlalu banyak percobaan. Silakan login kembali."
-    resend_wait: "Tunggu 60 detik sebelum mengirim ulang OTP."
-    invalid_challenge: "Sesi OTP tidak valid atau sudah kedaluwarsa. Silakan login kembali."
+  time:
+    formats:
+      long: "%Y-%m-%d %H:%M %Z"
+  mailers:
+    security:
+      password_changed_subject: "Password akun Anda telah diubah"
+      password_changed_title: "Password berhasil diubah"
+      password_changed_body: "Semua sesi aktif telah diakhiri. Jika Anda tidak melakukan perubahan ini, segera hubungi dukungan."
+    login_notification:
+      subject: "Login baru ke akun Anda"
+      title: "Login baru terdeteksi"
+      intro: "Sesi baru telah dibuat untuk akun Anda."
+      device: "Perangkat"
+      time: "Waktu"
+      warning: "Jika ini bukan Anda, segera akhiri sesi tersebut dari halaman Perangkat aktif dan ubah password."
+  api:
+    errors:
+      authentication_required: "Anda harus login terlebih dahulu."
+      forbidden: "Anda tidak memiliki izin untuk mengakses resource ini."
+      invalid_csrf_token: "Sesi keamanan tidak valid. Muat ulang halaman dan coba lagi."
+      resource_not_found: "Resource yang diminta tidak ditemukan."
+      invalid_json: "Format JSON pada request tidak valid."
+      internal_server_error: "Server mengalami masalah. Silakan coba lagi nanti."
+      service_unavailable: "Layanan belum siap. Silakan coba lagi sebentar."
+      validation_failed: "Data yang diberikan tidak valid."
+      rate_limited: "Terlalu banyak percobaan. Coba lagi nanti."
+      registration_rate_limited: "Terlalu banyak pendaftaran. Coba lagi nanti."
+      role_rate_limited: "Terlalu banyak perubahan role. Coba lagi sebentar."
+      user_rate_limited: "Terlalu banyak perubahan pengguna. Coba lagi sebentar."
+      email_already_registered: "Email sudah terdaftar."
+      account_inactive: "Akun Anda nonaktif. Silakan hubungi %{email}."
+      invalid_credentials: "Email atau password tidak valid."
+      invalid_otp: "Kode OTP tidak valid."
+      otp_locked: "Terlalu banyak percobaan. Silakan login kembali."
+      otp_resend_too_soon: "Tunggu 60 detik sebelum mengirim ulang OTP."
+      invalid_otp_challenge: "Sesi OTP tidak valid atau sudah kedaluwarsa. Silakan login kembali."
+      invalid_password_reset_token: "Link reset tidak valid atau sudah kedaluwarsa."
+      last_active_admin_required: "Admin aktif terakhir tidak dapat dinonaktifkan atau diturunkan rolenya."

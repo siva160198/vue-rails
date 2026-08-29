@@ -1,128 +1,237 @@
 <script setup>
-import { computed, onBeforeUnmount, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { apiFetch } from '../services/api'
-import { toast } from '../services/toast'
-import AsyncButton from '../components/AsyncButton.vue'
-import { t } from '../services/i18n'
+import { computed, onBeforeUnmount, ref } from "vue";
+import { useRouter } from "vue-router";
+import { apiFetch } from "../services/api";
+import { toast } from "../services/toast";
+import AsyncButton from "../components/AsyncButton.vue";
+import { t } from "../services/i18n";
+import { useAuth } from "../services/auth";
+import FormField from "../components/FormField.vue";
+import TextInput from "../components/TextInput.vue";
+import { useFormErrors } from "../services/formErrors";
 
-const router = useRouter()
-const email = ref('')
-const password = ref('')
-const passwordConfirmation = ref('')
-const code = ref('')
-const challengeToken = ref('')
-const emailHint = ref('')
-const loading = ref(false)
-const resendLoading = ref(false)
-const resendIn = ref(0)
-let cooldownTimer
-const emailValid = computed(() => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value))
-const formValid = computed(() => challengeToken.value ? /^\d{6}$/.test(code.value) : emailValid.value && password.value.length >= 12 && password.value === passwordConfirmation.value)
+const router = useRouter();
+const { setUser } = useAuth();
+const email = ref("");
+const password = ref("");
+const passwordConfirmation = ref("");
+const code = ref("");
+const challengeToken = ref("");
+const emailHint = ref("");
+const loading = ref(false);
+const registrationForm = ref(null);
+const { errorFor, clearError, clearErrors, applyApiError } = useFormErrors();
+const resendLoading = ref(false);
+const resendIn = ref(0);
+let cooldownTimer;
+const emailValid = computed(() =>
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value),
+);
+const formValid = computed(() =>
+  challengeToken.value
+    ? /^\d{6}$/.test(code.value)
+    : emailValid.value &&
+      password.value.length >= 12 &&
+      password.value === passwordConfirmation.value,
+);
 
 function startResendCooldown(seconds) {
-  window.clearInterval(cooldownTimer)
-  resendIn.value = Number(seconds) || 0
-  if (resendIn.value <= 0) return
+  window.clearInterval(cooldownTimer);
+  resendIn.value = Number(seconds) || 0;
+  if (resendIn.value <= 0) return;
   cooldownTimer = window.setInterval(() => {
-    resendIn.value -= 1
-    if (resendIn.value <= 0) window.clearInterval(cooldownTimer)
-  }, 1000)
+    resendIn.value -= 1;
+    if (resendIn.value <= 0) window.clearInterval(cooldownTimer);
+  }, 1000);
 }
 
 async function register() {
-  if (loading.value || !formValid.value) return
+  if (loading.value || !formValid.value) return;
   if (password.value !== passwordConfirmation.value) {
-    toast.warning(t('auth.password_mismatch'))
-    return
+    toast.warning(t("auth.password_mismatch"));
+    return;
   }
 
-  loading.value = true
+  loading.value = true;
+  clearErrors();
   try {
-    const response = await apiFetch('/api/v1/registration', {
-      method: 'POST',
+    const response = await apiFetch("/api/v1/registration", {
+      method: "POST",
       body: JSON.stringify({
         email_address: email.value,
         password: password.value,
         password_confirmation: passwordConfirmation.value,
       }),
-    })
-    challengeToken.value = response.challenge_token
-    emailHint.value = response.email_hint
-    startResendCooldown(response.resend_in)
+    });
+    challengeToken.value = response.challenge_token;
+    emailHint.value = response.email_hint;
+    startResendCooldown(response.resend_in);
     if (response.account_unverified) {
-      toast.warning(`Akun sudah terdaftar tetapi belum terverifikasi. Kode verifikasi baru telah dikirim ke ${response.email_hint}.`)
+      toast.warning(t("auth.unverified", { email: response.email_hint }));
     } else {
-      toast.info(`Kode verifikasi telah dikirim ke ${response.email_hint}.`)
+      toast.info(t("auth.otp_sent", { email: response.email_hint }));
     }
   } catch (requestError) {
-    toast.error(requestError.message)
+    await applyApiError(requestError, registrationForm.value);
+    toast.error(requestError.message);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function verifyOtp() {
-  if (loading.value || !formValid.value) return
-  loading.value = true
+  if (loading.value || !formValid.value) return;
+  loading.value = true;
   try {
-    await apiFetch('/api/v1/session/verify_otp', {
-      method: 'POST',
-      body: JSON.stringify({ challenge_token: challengeToken.value, code: code.value }),
-    })
-    await router.push('/')
+    const { user } = await apiFetch("/api/v1/session/verify_otp", {
+      method: "POST",
+      body: JSON.stringify({
+        challenge_token: challengeToken.value,
+        code: code.value,
+      }),
+    });
+    setUser(user);
+    await router.push("/");
   } catch (requestError) {
-    toast.error(requestError.message)
+    toast.error(requestError.message);
   } finally {
-    loading.value = false
+    loading.value = false;
   }
 }
 
 async function resendOtp() {
-  if (resendLoading.value || resendIn.value > 0) return
-  resendLoading.value = true
+  if (resendLoading.value || resendIn.value > 0) return;
+  resendLoading.value = true;
   try {
-    const response = await apiFetch('/api/v1/session/resend_otp', {
-      method: 'POST',
+    const response = await apiFetch("/api/v1/session/resend_otp", {
+      method: "POST",
       body: JSON.stringify({ challenge_token: challengeToken.value }),
-    })
-    challengeToken.value = response.challenge_token
-    code.value = ''
-    startResendCooldown(response.resend_in)
-    toast.info(`Kode baru telah dikirim ke ${response.email_hint}.`)
+    });
+    challengeToken.value = response.challenge_token;
+    code.value = "";
+    startResendCooldown(response.resend_in);
+    toast.info(t("auth.otp_resent", { email: response.email_hint }));
   } catch (requestError) {
-    toast.error(requestError.message)
+    toast.error(requestError.message);
   } finally {
-    resendLoading.value = false
+    resendLoading.value = false;
   }
 }
-onBeforeUnmount(() => window.clearInterval(cooldownTimer))
+onBeforeUnmount(() => window.clearInterval(cooldownTimer));
 </script>
 
 <template>
-  <main class="flex min-h-[calc(100vh-65px)] items-center justify-center px-6 py-12">
-    <form class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60" @submit.prevent="challengeToken ? verifyOtp() : register()">
-      <p class="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600">{{ t('auth.registration') }}</p>
-      <h1 class="mt-3 text-3xl font-bold tracking-tight">{{ t(challengeToken ? 'auth.verify_email' : 'auth.register_title') }}</h1>
+  <main
+    class="flex min-h-[calc(100vh-65px)] items-center justify-center px-6 py-12"
+  >
+    <form
+      ref="registrationForm"
+      class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60"
+      @submit.prevent="challengeToken ? verifyOtp() : register()"
+    >
+      <p
+        class="text-sm font-semibold uppercase tracking-[0.2em] text-brand-600"
+      >
+        {{ t("auth.registration") }}
+      </p>
+      <h1 class="mt-3 text-3xl font-bold tracking-tight">
+        {{ t(challengeToken ? "auth.verify_email" : "auth.register_title") }}
+      </h1>
       <p class="mt-2 text-sm text-slate-500">
-        {{ challengeToken ? t('auth.otp_hint', { email: emailHint }) : t('auth.register_hint') }}
+        {{
+          challengeToken
+            ? t("auth.otp_hint", { email: emailHint })
+            : t("auth.register_hint")
+        }}
       </p>
 
       <div v-if="!challengeToken" class="mt-8 space-y-5">
-        <label class="block text-sm font-medium">Email<input v-model="email" type="email" autocomplete="email" required class="mt-2 w-full rounded-xl px-4 py-3" /></label>
-        <label class="block text-sm font-medium">{{ t('auth.password') }}<input v-model="password" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /><span class="mt-1 block text-xs text-slate-500">{{ t('auth.password_min') }}</span></label>
-        <label class="block text-sm font-medium">{{ t('auth.confirm_password') }}<input v-model="passwordConfirmation" type="password" autocomplete="new-password" minlength="12" required class="mt-2 w-full rounded-xl px-4 py-3" /></label>
+        <FormField :label="t('auth.email')" :error="errorFor('email_address')">
+          <TextInput
+            v-model="email"
+            name="email_address"
+            :disabled="loading"
+            type="email"
+            autocomplete="email"
+            required
+            @input="clearError('email_address')"
+          />
+        </FormField>
+        <FormField :label="t('auth.password')" :help="t('auth.password_min')" :error="errorFor('password')">
+          <TextInput
+            v-model="password"
+            name="password"
+            :disabled="loading"
+            type="password"
+            autocomplete="new-password"
+            minlength="12"
+            required
+            @input="clearError('password')"
+          />
+        </FormField>
+        <FormField :label="t('auth.confirm_password')" :error="errorFor('password_confirmation')">
+          <TextInput
+            v-model="passwordConfirmation"
+            name="password_confirmation"
+            :disabled="loading"
+            type="password"
+            autocomplete="new-password"
+            minlength="12"
+            required
+            @input="clearError('password_confirmation')"
+          />
+        </FormField>
       </div>
 
       <div v-else class="mt-8">
-        <label class="block text-sm font-medium">Kode OTP<input v-model="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required autofocus class="mt-2 w-full rounded-xl px-4 py-3 text-center text-2xl font-bold tracking-[0.45em]" /></label>
+        <FormField :label="t('auth.otp')">
+          <TextInput
+            v-model="code"
+            :disabled="loading"
+            type="text"
+            inputmode="numeric"
+            autocomplete="one-time-code"
+            pattern="[0-9]{6}"
+            maxlength="6"
+            required
+            autofocus
+            class="text-center text-2xl font-bold tracking-[0.45em]"
+          />
+        </FormField>
       </div>
 
-      <AsyncButton type="submit" :loading="loading" :disabled="resendLoading || !formValid" :loading-text="t(challengeToken ? 'auth.verifying' : 'auth.registering')" class="mt-6 w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white hover:bg-brand-600">{{ t(challengeToken ? 'auth.verify_and_login' : 'auth.register') }}</AsyncButton>
+      <AsyncButton
+        type="submit"
+        :loading="loading"
+        :disabled="resendLoading || !formValid"
+        :loading-text="
+          t(challengeToken ? 'auth.verifying' : 'auth.registering')
+        "
+        class="mt-6 w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white hover:bg-brand-600"
+        >{{
+          t(challengeToken ? "auth.verify_and_login" : "auth.register")
+        }}</AsyncButton
+      >
 
       <div class="mt-5 flex items-center justify-between text-sm">
-        <RouterLink to="/login" class="font-medium text-gray-500 hover:text-gray-900">{{ t('auth.have_account') }}</RouterLink>
-        <AsyncButton v-if="challengeToken" :loading="resendLoading" :disabled="loading || resendIn > 0" :loading-text="t('auth.resending')" class="font-semibold text-brand-600 hover:text-brand-500" @click="resendOtp">{{ resendIn > 0 ? t('auth.resend_countdown', { seconds: resendIn }) : t('auth.resend') }}</AsyncButton>
+        <RouterLink
+          to="/login"
+          class="font-medium text-gray-500 hover:text-gray-900"
+          >{{ t("auth.have_account") }}</RouterLink
+        >
+        <AsyncButton
+          v-if="challengeToken"
+          :loading="resendLoading"
+          :disabled="loading || resendIn > 0"
+          :loading-text="t('auth.resending')"
+          class="font-semibold text-brand-600 hover:text-brand-500"
+          @click="resendOtp"
+          >{{
+            resendIn > 0
+              ? t("auth.resend_countdown", { seconds: resendIn })
+              : t("auth.resend")
+          }}</AsyncButton
+        >
       </div>
     </form>
   </main>

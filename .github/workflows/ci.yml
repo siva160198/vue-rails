@@ -47,8 +47,16 @@ jobs:
       - name: Build Vue frontend
         run: npm run build --prefix frontend
 
-      - name: Test Vue frontend
-        run: npm test --prefix frontend
+      - name: Test Vue frontend with coverage gate
+        run: npm run test:coverage --prefix frontend
+
+      - name: Upload Vue coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: vue-coverage
+          path: tmp/frontend-coverage
+          if-no-files-found: ignore
 
   lint:
     runs-on: ubuntu-latest
@@ -129,6 +137,14 @@ jobs:
           # RAILS_MASTER_KEY: ${{ secrets.RAILS_MASTER_KEY }}
           # REDIS_URL: redis://localhost:6379/0
         run: bin/rails db:test:prepare test
+
+      - name: Upload Rails coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rails-coverage
+          path: tmp/coverage
+          if-no-files-found: ignore
 
   e2e:
     runs-on: ubuntu-latest

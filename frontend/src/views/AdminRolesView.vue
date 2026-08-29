@@ -1,80 +1,130 @@
 <script setup>
-import { computed, onMounted, reactive, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed, reactive, ref } from "vue";
+import { Save } from "@lucide/vue";
 import AdminLayout from "../components/admin/AdminLayout.vue";
-import { apiFetch, currentUser } from "../services/api";
+import { apiFetch } from "../services/api";
 import { confirmToast, toast } from "../services/toast";
 import AsyncButton from "../components/AsyncButton.vue";
 import PermissionPicker from "../components/PermissionPicker.vue";
 import DataTable from "../components/DataTable.vue";
 import { hasChanges, snapshot } from "../services/changeTracking";
 import { t } from "../services/i18n";
+import { useAuth } from "../services/auth";
+import { useServerTable } from "../services/serverTable";
+import AppModal from "../components/AppModal.vue";
+import FormField from "../components/FormField.vue";
+import TextInput from "../components/TextInput.vue";
+import TextareaInput from "../components/TextareaInput.vue";
+import TableActionButton from "../components/TableActionButton.vue";
+import { useFormErrors } from "../services/formErrors";
 
-const router = useRouter();
-const admin = ref(null);
-const roles = ref([]);
 const permissions = ref([]);
-const loading = ref(false);
 const creating = ref(false);
 const savingRoleIds = ref(new Set());
 const deletingRoleIds = ref(new Set());
-const logoutLoading = ref(false);
-const roleSnapshots = ref(new Map());
-const totalRoles = ref(0);
+const editingRole = ref(null);
+const editSnapshot = ref(null);
+const modalLoading = ref(false);
+const createFormElement = ref(null);
+const editFormElement = ref(null);
+const createErrors = useFormErrors();
+const editErrors = useFormErrors();
+let modalRequestSequence = 0;
+const { can, canAny } = useAuth();
+const {
+  items: roles,
+  loading,
+  pagination,
+  load: loadRoles,
+  updateItem: updateRole,
+  removeItem: removeRole,
+} = useServerTable({
+  endpoint: "/api/v1/admin/roles",
+  collectionKey: "roles",
+  onResponse: (response) => {
+    permissions.value = response.permissions;
+  },
+});
 const form = reactive({
   key: "",
   name: "",
   description: "",
   permission_keys: [],
 });
-const canManage = () => admin.value?.permissions.includes("roles.manage");
+const canCreateRole = () => can("roles.create");
+const canUpdateRole = () => can("roles.update");
+const canDeleteRole = () => can("roles.delete");
+const hasRoleActions = () => canAny(["roles.update", "roles.delete"]);
 const roleState = (role) => ({
   name: role.name,
   description: role.description || "",
   permission_keys: role.permission_keys,
 });
-const hasRoleChanges = (role) =>
-  hasChanges(roleState(role), roleSnapshots.value.get(role.id));
-const canCreate = computed(
+const hasEditChanges = computed(
+  () =>
+    editingRole.value &&
+    hasChanges(roleState(editingRole.value), editSnapshot.value),
+);
+const canSubmitCreate = computed(
   () => form.name.trim().length > 0 && /^[a-z0-9_]+$/.test(form.key),
 );
 const columns = computed(() => [
   { key: "name", label: t("roles.name") },
   { key: "key", label: t("roles.key") },
   { key: "description", label: t("roles.description") },
+  { key: "permissions", label: t("roles.permissions"), sortable: false },
   { key: "users_count", label: t("roles.users") },
   { key: "action", label: t("common.action"), sortable: false },
 ]);
 
 function sanitizeKey(event) {
+  createErrors.clearError("key");
   form.key = event.target.value
     .toLowerCase()
     .replace(/\s+/g, "_")
     .replace(/[^a-z0-9_]/g, "");
 }
 
-async function loadRoles(options = { page: 1, per_page: 10 }) {
-  if (loading.value) return;
-  loading.value = true;
+async function openEditModal(role) {
+  editErrors.clearErrors();
+  const requestSequence = ++modalRequestSequence;
+  editingRole.value = { id: role.id, key: role.key, name: role.name };
+  editSnapshot.value = null;
+  modalLoading.value = true;
   try {
-    const query = new URLSearchParams(Object.entries(options).filter(([, value]) => value !== "")).toString();
-    const response = await apiFetch(`/api/v1/admin/roles?${query}`);
-    roles.value = response.roles;
+    const response = await apiFetch(`/api/v1/admin/roles/${role.id}`);
+    if (requestSequence !== modalRequestSequence) return;
+    editingRole.value = {
+      ...response.role,
+      permission_keys: [...response.role.permission_keys],
+    };
     permissions.value = response.permissions;
-    totalRoles.value = response.pagination.total;
-    roleSnapshots.value = new Map(
-      response.roles.map((role) => [role.id, snapshot(roleState(role))]),
-    );
+    editSnapshot.value = snapshot(roleState(editingRole.value));
   } catch (requestError) {
+    if (requestSequence !== modalRequestSequence) return;
+    editingRole.value = null;
     toast.error(requestError.message);
   } finally {
-    loading.value = false;
+    if (requestSequence === modalRequestSequence) modalLoading.value = false;
   }
 }
 
+function closeEditModal() {
+  if (
+    modalLoading.value ||
+    (editingRole.value && savingRoleIds.value.has(editingRole.value.id))
+  )
+    return;
+  modalRequestSequence += 1;
+  editingRole.value = null;
+  editSnapshot.value = null;
+  editErrors.clearErrors();
+}
+
 async function createRole() {
-  if (creating.value || !canCreate.value) return;
+  if (creating.value || !canCreateRole() || !canSubmitCreate.value) return;
   creating.value = true;
+  createErrors.clearErrors();
   try {
     await apiFetch("/api/v1/admin/roles", {
       method: "POST",
@@ -89,6 +139,7 @@ async function createRole() {
     toast.success(t("roles.created"));
     await loadRoles();
   } catch (requestError) {
+    await createErrors.applyApiError(requestError, createFormElement.value);
     toast.error(requestError.message);
   } finally {
     creating.value = false;
@@ -96,8 +147,9 @@ async function createRole() {
 }
 
 async function saveRole(role) {
-  if (savingRoleIds.value.has(role.id) || !hasRoleChanges(role)) return;
+  if (savingRoleIds.value.has(role.id) || !hasEditChanges.value) return;
   savingRoleIds.value = new Set(savingRoleIds.value).add(role.id);
+  editErrors.clearErrors();
   try {
     const response = await apiFetch(`/api/v1/admin/roles/${role.id}`, {
       method: "PATCH",
@@ -107,13 +159,12 @@ async function saveRole(role) {
         permission_keys: role.permission_keys,
       }),
     });
-    Object.assign(role, response.role);
-    roleSnapshots.value = new Map(roleSnapshots.value).set(
-      role.id,
-      snapshot(roleState(role)),
-    );
+    updateRole(role.id, response.role);
     toast.success(t("roles.updated", { name: role.name }));
+    editingRole.value = null;
+    editSnapshot.value = null;
   } catch (requestError) {
+    await editErrors.applyApiError(requestError, editFormElement.value);
     toast.error(requestError.message);
   } finally {
     const nextIds = new Set(savingRoleIds.value);
@@ -133,7 +184,7 @@ async function deleteRole(role) {
   deletingRoleIds.value = new Set(deletingRoleIds.value).add(role.id);
   try {
     await apiFetch(`/api/v1/admin/roles/${role.id}`, { method: "DELETE" });
-    roles.value = roles.value.filter((item) => item.id !== role.id);
+    removeRole(role.id);
     toast.success(t("roles.deleted", { name: role.name }));
   } catch (requestError) {
     toast.error(requestError.message);
@@ -143,36 +194,10 @@ async function deleteRole(role) {
     deletingRoleIds.value = nextIds;
   }
 }
-
-async function logout() {
-  if (logoutLoading.value) return;
-  logoutLoading.value = true;
-  try {
-    await apiFetch("/api/v1/session", { method: "DELETE" });
-    await router.push("/login");
-  } catch (requestError) {
-    toast.error(requestError.message);
-  } finally {
-    logoutLoading.value = false;
-  }
-}
-
-onMounted(async () => {
-  try {
-    admin.value = await currentUser();
-  } catch (requestError) {
-    toast.error(requestError.message);
-  }
-});
 </script>
 
 <template>
-  <AdminLayout
-    :email="admin?.email_address"
-    :permissions="admin?.permissions"
-    :logout-loading="logoutLoading"
-    @logout="logout"
-  >
+  <AdminLayout>
     <div class="mx-auto max-w-[1536px]">
       <div class="mb-6">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
@@ -182,28 +207,26 @@ onMounted(async () => {
       </div>
 
       <form
-        v-if="canManage()"
+        ref="createFormElement"
+        v-if="canCreateRole()"
         class="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2"
         @submit.prevent="createRole"
       >
-        <div>
-          <label class="mb-2 block text-sm font-medium dark:text-white">{{
-            t("roles.name")
-          }}</label
-          ><input
+        <FormField :label="t('roles.name')" :error="createErrors.errorFor('name')">
+          <TextInput
             v-model="form.name"
+            name="name"
             :disabled="creating"
             required
             class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm disabled:opacity-60 dark:border-gray-700 dark:text-white"
             :placeholder="t('roles.name_placeholder')"
+            @input="createErrors.clearError('name')"
           />
-        </div>
-        <div>
-          <label class="mb-2 block text-sm font-medium dark:text-white">{{
-            t("roles.key")
-          }}</label
-          ><input
+        </FormField>
+        <FormField :label="t('roles.key')" :help="t('roles.key_help')" :error="createErrors.errorFor('key')">
+          <TextInput
             v-model="form.key"
+            name="key"
             :disabled="creating"
             required
             pattern="[a-z0-9_]+"
@@ -211,19 +234,17 @@ onMounted(async () => {
             placeholder="editor"
             @input="sanitizeKey"
           />
-          <p class="mt-1 text-xs text-gray-400">{{ t("roles.key_help") }}</p>
-        </div>
-        <div class="md:col-span-2">
-          <label class="mb-2 block text-sm font-medium dark:text-white">{{
-            t("roles.description")
-          }}</label
-          ><textarea
+        </FormField>
+        <FormField class="md:col-span-2" :label="t('roles.description')" :error="createErrors.errorFor('description')">
+          <TextareaInput
             v-model="form.description"
+            name="description"
             :disabled="creating"
             rows="2"
+            @input="createErrors.clearError('description')"
             class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm disabled:opacity-60 dark:border-gray-700 dark:text-white"
           />
-        </div>
+        </FormField>
         <fieldset
           :disabled="creating"
           class="md:col-span-2 disabled:opacity-60"
@@ -241,10 +262,10 @@ onMounted(async () => {
           <AsyncButton
             type="submit"
             :loading="creating"
-            :disabled="!canCreate"
-            loading-text="Menambahkan…"
+            :disabled="!canSubmitCreate"
+            :loading-text="t('roles.adding')"
             class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600"
-            >Tambah role</AsyncButton
+            >{{ t("roles.add") }}</AsyncButton
           >
         </div>
       </form>
@@ -255,17 +276,12 @@ onMounted(async () => {
         :loading="loading"
         :empty-text="t('roles.empty')"
         server-mode
-        :total="totalRoles"
+        :total="pagination.total"
         @request="loadRoles"
         ><template #cell-name="{ item: role }"
-          ><input
-            v-model="role.name"
-            :disabled="
-              !canManage() ||
-              savingRoleIds.has(role.id) ||
-              deletingRoleIds.has(role.id)
-            "
-            class="rounded-lg px-3 py-2 font-medium" /></template
+          ><span class="font-medium text-gray-800 dark:text-white">{{
+            role.name
+          }}</span></template
         ><template #cell-key="{ item: role }"
           ><span class="font-mono text-xs text-gray-500">{{ role.key }}</span
           ><span
@@ -274,37 +290,38 @@ onMounted(async () => {
             >{{ t("common.system") }}</span
           ></template
         ><template #cell-description="{ item: role }"
-          ><input
-            v-model="role.description"
-            :disabled="
-              !canManage() ||
-              savingRoleIds.has(role.id) ||
-              deletingRoleIds.has(role.id)
-            "
-            class="min-w-64 rounded-lg px-3 py-2" />
-          <div class="mt-3 min-w-96">
-            <PermissionPicker
-              v-model="role.permission_keys"
-              :permissions="permissions"
-              :disabled="
-                !canManage() ||
-                role.key === 'admin' ||
-                savingRoleIds.has(role.id) ||
-                deletingRoleIds.has(role.id)
-              "
-            /></div></template
+          ><p
+            :title="role.description || t('roles.no_description')"
+            class="max-w-sm line-clamp-2 text-sm text-gray-500"
+          >
+            {{ role.description || t("roles.no_description") }}
+          </p></template
+        ><template #cell-permissions="{ item: role }"
+          ><span
+            class="inline-flex rounded-full bg-brand-50 px-2.5 py-1 text-xs font-medium text-brand-600 dark:bg-brand-500/10 dark:text-brand-400"
+            >{{
+              t("roles.permission_count", {
+                count: role.permission_keys.length,
+              })
+            }}</span
+          ></template
         ><template #cell-users_count="{ item: role }"
           ><span class="text-gray-500">{{ role.users_count }}</span></template
         ><template #cell-action="{ item: role }"
-          ><div v-if="canManage()" class="flex gap-2">
-            <AsyncButton
-              :loading="savingRoleIds.has(role.id)"
-              :disabled="deletingRoleIds.has(role.id) || !hasRoleChanges(role)"
-              :loading-text="t('common.saving')"
-              class="rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white"
-              @click="saveRole(role)"
-              >{{ t("common.save") }}</AsyncButton
-            ><AsyncButton
+          ><div v-if="hasRoleActions()" class="flex gap-2">
+            <TableActionButton
+              v-if="canUpdateRole()"
+              action="edit"
+              :label="t('common.edit')"
+              :accessible-label="t('roles.edit_role', { name: role.name })"
+              :disabled="deletingRoleIds.has(role.id)"
+              @click="openEditModal(role)"
+            />
+            <TableActionButton
+              v-if="canDeleteRole()"
+              action="delete"
+              :label="t('common.delete')"
+              :accessible-label="t('roles.delete_role', { name: role.name })"
               :loading="deletingRoleIds.has(role.id)"
               :disabled="
                 role.system ||
@@ -312,10 +329,8 @@ onMounted(async () => {
                 savingRoleIds.has(role.id)
               "
               :loading-text="t('common.deleting')"
-              class="rounded-lg border border-error-200 px-3 py-2 text-xs font-semibold text-error-700"
               @click="deleteRole(role)"
-              >{{ t("common.delete") }}</AsyncButton
-            >
+            />
           </div>
           <span v-else class="text-xs text-gray-400">{{
             t("common.view_only")
@@ -323,5 +338,75 @@ onMounted(async () => {
         ></DataTable
       >
     </div>
+
+    <AppModal
+      :open="Boolean(editingRole)"
+      :title="t('roles.edit_title')"
+      :hint="editingRole ? t('roles.edit_hint', { key: editingRole.key }) : ''"
+      :loading="modalLoading"
+      :close-disabled="Boolean(editingRole && savingRoleIds.has(editingRole.id))"
+      size="lg"
+      @close="closeEditModal"
+    >
+      <form
+        v-if="editingRole"
+        ref="editFormElement"
+        id="edit-role-form"
+        class="space-y-5"
+        @submit.prevent="saveRole(editingRole)"
+      >
+            <FormField :label="t('roles.name')" :error="editErrors.errorFor('name')">
+              <TextInput
+                v-model="editingRole.name"
+                name="name"
+                required
+                :disabled="savingRoleIds.has(editingRole.id)"
+                @input="editErrors.clearError('name')"
+                class="w-full rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm disabled:opacity-60 dark:border-gray-700 dark:text-white"
+              />
+            </FormField>
+            <FormField :label="t('roles.description')" :error="editErrors.errorFor('description')">
+              <TextareaInput
+                v-model="editingRole.description"
+                name="description"
+                rows="4"
+                :disabled="savingRoleIds.has(editingRole.id)"
+                :placeholder="t('roles.description_placeholder')"
+                class="w-full resize-y rounded-lg border border-gray-200 bg-transparent px-4 py-2.5 text-sm disabled:opacity-60 dark:border-gray-700 dark:text-white"
+                @input="editErrors.clearError('description')"
+              />
+            </FormField>
+            <fieldset :disabled="savingRoleIds.has(editingRole.id)">
+              <legend class="mb-3 text-sm font-medium dark:text-white">
+                {{ t("roles.permissions") }}
+              </legend>
+              <PermissionPicker
+                v-model="editingRole.permission_keys"
+                :permissions="permissions"
+                :readonly="editingRole.key === 'admin'"
+              />
+            </fieldset>
+      </form>
+      <template #footer>
+            <button
+              type="button"
+              :disabled="savingRoleIds.has(editingRole.id)"
+              class="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
+              @click="closeEditModal"
+            >
+              {{ t("common.cancel") }}
+            </button>
+            <AsyncButton
+              form="edit-role-form"
+              type="submit"
+              :loading="savingRoleIds.has(editingRole.id)"
+              :disabled="!editingRole.name.trim() || !hasEditChanges"
+              :loading-text="t('common.saving')"
+              class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600"
+            >
+              <Save :size="16" />{{ t("common.save") }}
+            </AsyncButton>
+      </template>
+    </AppModal>
   </AdminLayout>
 </template>

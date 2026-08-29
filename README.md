@@ -99,6 +99,11 @@ development, outgoing messages can be opened at
 only mounted in development. The OTP expires after five minutes, is single-use,
 and is locked after five failed attempts.
 
+OTP and password-reset messages are enqueued on Solid Queue's dedicated
+`mailers` queue. Production must run a separate worker with `bin/jobs`; temporary
+SMTP failures are retried with backoff up to four attempts. The test environment
+uses the inline adapter so controller tests can inspect generated messages.
+
 For production, configure an SMTP provider with:
 
 ```sh
@@ -146,35 +151,88 @@ Production enables HTTPS/HSTS, secure cookies, CSP, security headers, and SMTP
 validation by default. Set `FRONTEND_ORIGIN` only when Vue is deployed on a
 different origin; the Docker image serves Vue and Rails from one origin.
 
-Build and run the production image:
+Production boot fails early when required configuration is missing, insecure, or
+still contains template placeholder values. Replace every example value in
+`.env.example`, especially `APP_HOST`, `FRONTEND_URL`, `DATABASE_URL`, mail
+addresses, and SMTP configuration.
+
+Build the image, run the release migration once, then start separate web and job
+processes from the same image:
 
 ```sh
-docker build -t my_project .
-docker run --env-file .env -p 80:80 my_project
+docker build -t my_project \
+  --build-arg VITE_SENTRY_DSN="$VITE_SENTRY_DSN" \
+  --build-arg VITE_APP_RELEASE="$APP_RELEASE" .
+docker run --rm --env-file .env my_project bin/release
+docker run --env-file .env -p 80:80 --name my_project-web my_project
+docker run --env-file .env --name my_project-jobs my_project bin/jobs
 ```
+
+Do not run migrations independently in every web replica. `bin/release` must
+complete before new containers receive traffic. Roll application code back by
+redeploying the previous image; database rollback is always reviewed and explicit.
 
 The Docker build uses Ruby 4.0.6 and Node 22, builds Vue into
 `public/frontend`, and serves SPA routes through Rails. Never commit `.env`,
 `config/master.key`, or deployed application credentials.
 
+### Health checks
+
+- `GET /up` is the dependency-free liveness probe used by Docker.
+- `GET /api/v1/readiness` verifies primary PostgreSQL and Solid Queue storage.
+  Load balancers should only send traffic after it returns `200`.
+
+### Observability
+
+Production Rails logs are JSON with timestamp, severity, message, and request ID.
+Vue generates `X-Request-ID` for every API request; Rails returns it and API errors
+retain it for diagnostics.
+
+Sentry is optional and disabled when its DSN is blank. Configure `SENTRY_DSN` for
+Rails and inject `VITE_SENTRY_DSN` when building Vue. Trace sampling defaults to
+zero and default PII collection stays disabled. Set `APP_RELEASE` and
+`VITE_APP_RELEASE` to the same immutable image or Git revision.
+
+Kamal defines separate web and job roles. Run `bin/kamal release` once during the
+release phase before switching traffic.
+
 ## Admin operations
 
 - User management: `http://localhost:5173/admin/users`
 - Audit logs: `http://localhost:5173/admin/audit-logs`
+- Active devices: `http://localhost:5173/admin/sessions`
 
 Admins can search users, change member/admin roles, and disable accounts. An
 admin cannot change their own access. Disabling a user revokes their sessions,
 and security-sensitive actions are written to the audit log.
+
+Users can review their own active login sessions, see login time, IP address, and
+browser user-agent, revoke one session, or revoke every session except the current
+device. Every successful login sends a security notification email. Session APIs
+are always ownership-scoped and never expose another user's devices.
+
+## API documentation
+
+The formal OpenAPI 3.1 contract is [docs/openapi.yml](docs/openapi.yml). It
+documents authentication cookies, CSRF headers, request/response schemas,
+pagination, errors, account sessions, and admin endpoints. The Rails contract test
+fails when a concrete `/api/v1` route is added or removed without updating OpenAPI,
+when operation IDs collide, or when a mutation omits its CSRF requirement.
 
 ## Verification
 
 ```sh
 bin/rails test
 npm test --prefix frontend
+npm run test:coverage --prefix frontend
 npm run test:e2e --prefix frontend
 npm run build --prefix frontend
 bin/rubocop
 ```
+
+Rails tests generate a SimpleCov report in `tmp/coverage`. Frontend coverage is
+generated in `tmp/frontend-coverage`. CI enforces the configured coverage floors and
+uploads both HTML reports as build artifacts.
 
 Playwright starts Rails and Vite automatically. Install its Chromium runtime
 once on a development machine with:
@@ -188,3 +246,15 @@ npx --prefix frontend playwright install chromium
 Keep this repository generic. Add reusable infrastructure and UI components
 here, but add business-specific models, migrations, and credentials only after
 creating a project from the template.
+Authenticated administrators with `api_docs.view` can open the interactive Swagger UI at
+`/admin/api-docs`. The source contract remains `docs/openapi.yml`.
+
+## Operations
+
+Backup, restore, deployment, rollback, monitoring, and incident procedures are documented in
+[`docs/operations.md`](docs/operations.md). `bin/backup` and `bin/restore` require PostgreSQL's
+client tools. Solid Queue failures can be inspected and managed at `/admin/jobs`.
+
+Use `bin/generate_admin_resource plural_resource` before adding a business resource. It validates
+the name and prints the complete integration checklist without guessing fields or overwriting the
+route, permission, OpenAPI, and translation registries.

@@ -1,0 +1,9 @@
+#!/usr/bin/env ruby
+backup = ARGV.fetch(0) { abort "Usage: bin/restore /absolute/path/to/backup.dump" }
+abort "Backup does not exist" unless File.file?(backup)
+abort "Set RESTORE_CONFIRM=restore to continue" unless ENV["RESTORE_CONFIRM"] == "restore"
+
+database_url = ENV.fetch("DATABASE_URL")
+command = [ "pg_restore", "--clean", "--if-exists", "--no-owner", "--no-acl", "--dbname", database_url, File.expand_path(backup) ]
+abort "Restore failed" unless system(*command)
+puts "Restore completed"

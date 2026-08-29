@@ -5,11 +5,11 @@ module Api
       rate_limit to: 5, within: 10.minutes, only: :create,
         with: -> { render json: generic_response, status: :accepted }
       rate_limit to: 10, within: 10.minutes, only: :update,
-        with: -> { render json: { error: "Terlalu banyak percobaan. Coba lagi nanti." }, status: :too_many_requests }
+        with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }
 
       def create
         user = User.find_by(email_address: params[:email_address].to_s.strip.downcase)
-        PasswordsMailer.reset(user).deliver_now if user
+        PasswordsMailer.reset(user).deliver_later if user
 
         render json: generic_response, status: :accepted
       end
@@ -30,10 +30,10 @@ module Api
         if user.save
           user.sessions.destroy_all
           AuditLog.record!(action: "password.reset", actor: user, auditable: user, request: request)
+          SecurityNotificationMailer.with(user: user).password_changed.deliver_later
           render json: { message: "Password berhasil diperbarui. Silakan login." }
         else
-          render json: { error: user.errors.full_messages.to_sentence, errors: user.errors.to_hash },
-            status: :unprocessable_content
+          render_validation_error(user)
         end
       end
 
@@ -51,7 +51,7 @@ module Api
         end
 
         def render_invalid_token
-          render json: { error: "Link reset tidak valid atau sudah kedaluwarsa." }, status: :unauthorized
+          render_api_error("INVALID_PASSWORD_RESET_TOKEN", status: :unauthorized)
         end
     end
   end

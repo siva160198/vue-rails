@@ -1,9 +1,15 @@
+if ENV["E2E"] == "true"
+  require "letter_opener"
+  require "letter_opener_web/delivery_method"
+end
+
 # The test environment is used exclusively to run your application's
 # test suite. You never need to work with it otherwise. Remember that
 # your test database is "scratch space" for the test suite and is wiped
 # and recreated between test runs. Don't rely on the data there!
 
 Rails.application.configure do
+  config.solid_queue.connects_to = { database: { writing: :queue } }
   # Settings specified here will take precedence over those in config/application.rb.
 
   # While tests run files are not watched, reloading is not necessary.
@@ -34,7 +40,17 @@ Rails.application.configure do
   # Tell Action Mailer not to deliver emails to the real world.
   # The :test delivery method accumulates sent emails in the
   # ActionMailer::Base.deliveries array.
-  config.action_mailer.delivery_method = :test
+  if ENV["E2E"] == "true"
+    config.action_mailer.delivery_method = :letter_opener
+    config.after_initialize do
+      ActionMailer::Base.add_delivery_method :letter_opener, LetterOpenerWeb::DeliveryMethod,
+        location: Rails.root.join("tmp/letter_opener"), file_uri_scheme: "file://"
+    end
+  else
+    config.action_mailer.delivery_method = :test
+  end
+  # Controller tests inspect delivered OTP/reset messages. Production still uses Solid Queue.
+  config.active_job.queue_adapter = :inline
 
   # Set host to be used by links generated in mailer templates.
   config.action_mailer.default_url_options = { host: "example.com" }

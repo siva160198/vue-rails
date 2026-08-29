@@ -4,23 +4,24 @@ module Api
       class RolesController < ApplicationController
         rate_limit to: 40, within: 1.minute, only: %i[create update destroy],
           by: -> { Current.user&.id || request.remote_ip },
-          with: -> { render json: { error: "Terlalu banyak perubahan role. Coba lagi sebentar." }, status: :too_many_requests }
+          with: -> { render_api_error("ROLE_RATE_LIMITED", status: :too_many_requests) }
 
         PERMISSION_DEPENDENCIES = {
           "users.update" => "users.view",
-          "roles.manage" => "roles.view"
+          "roles.create" => "roles.view",
+          "roles.update" => "roles.view",
+          "roles.delete" => "roles.view"
         }.freeze
 
         def index
           authorize Role
-          roles = policy_scope(Role)
-          roles = roles.where("name ILIKE :search OR key ILIKE :search OR description ILIKE :search", search: "%#{Role.sanitize_sql_like(params[:search])}%") if params[:search].present?
-          total = roles.count
-          per_page = params.fetch(:per_page, 10).to_i.clamp(5, 50)
-          page = [ params.fetch(:page, 1).to_i, 1 ].max
-          sort = %w[name key description created_at].include?(params[:sort]) ? params[:sort] : "name"
-          roles = roles.order(sort => (params[:direction] == "desc" ? :desc : :asc)).offset((page - 1) * per_page).limit(per_page)
-          render json: { roles: roles.map { |role| role_json(role) }, permissions: permissions_json, pagination: { total: total } }
+          roles, pagination = paginate_api(
+            policy_scope(Role),
+            search_columns: %w[name key description],
+            sortable_columns: %w[name key description created_at],
+            default_sort: :name
+          )
+          render json: { roles: roles.map { |role| role_json(role) }, permissions: permissions_json, pagination: pagination }
         end
 
         def create
@@ -33,7 +34,13 @@ module Api
           record_audit("admin.role_created", role, after: role_snapshot(role))
           render json: { role: role_json(role) }, status: :created
         rescue ActiveRecord::RecordInvalid
-          render json: { error: role.errors.full_messages.to_sentence }, status: :unprocessable_content
+          render_validation_error(role)
+        end
+
+        def show
+          role = Role.find(params[:id])
+          authorize role
+          render json: { role: role_json(role), permissions: permissions_json }
         end
 
         def update
@@ -52,7 +59,7 @@ module Api
           record_audit("admin.role_updated", role, before: before, after: role_snapshot(role))
           render json: { role: role_json(role) }
         rescue ActiveRecord::RecordInvalid
-          render json: { error: role.errors.full_messages.to_sentence }, status: :unprocessable_content
+          render_validation_error(role)
         end
 
         def destroy

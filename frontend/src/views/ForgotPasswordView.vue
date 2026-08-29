@@ -4,6 +4,8 @@ import { apiFetch } from '../services/api'
 import { toast } from '../services/toast'
 import AsyncButton from '../components/AsyncButton.vue'
 import { t } from '../services/i18n'
+import FormField from '../components/FormField.vue'
+import TextInput from '../components/TextInput.vue'
 
 const email = ref('')
 const loading = ref(false)
@@ -33,7 +35,7 @@ async function requestReset() {
       <h1 class="mt-3 text-3xl font-bold tracking-tight">{{ t('auth.forgot_title') }}</h1>
       <p class="mt-2 text-sm text-slate-500">{{ t('auth.forgot_hint') }}</p>
       <div class="mt-8">
-        <label class="block text-sm font-medium">Email<input v-model="email" :disabled="loading" type="email" autocomplete="email" required autofocus class="mt-2 w-full rounded-xl px-4 py-3" /></label>
+        <FormField :label="t('auth.email')"><TextInput v-model="email" :disabled="loading" type="email" autocomplete="email" required autofocus /></FormField>
       </div>
       <AsyncButton type="submit" :loading="loading" :disabled="!formValid" :loading-text="t('auth.sending_link')" class="mt-6 w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white hover:bg-brand-600">{{ t('auth.send_reset') }}</AsyncButton>
       <p class="mt-5 text-center text-sm"><RouterLink to="/login" class="font-semibold text-brand-600 hover:text-brand-500">{{ t('auth.back_login') }}</RouterLink></p>

@@ -1,5 +1,5 @@
 {
-  "name": "frontend",
+  "name": "vue-rails-frontend",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -11,11 +11,14 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "test:e2e": "playwright test"
   },
   "dependencies": {
     "@lucide/vue": "^1.33.0",
+    "@sentry/vue": "^10.72.0",
+    "swagger-ui-dist": "^5.32.14",
     "vue": "^3.5.40",
     "vue-router": "^4.6.4"
   },
@@ -23,7 +26,9 @@
     "@playwright/test": "^1.62.1",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vitest/coverage-v8": "^4.1.11",
     "@vue/test-utils": "^2.4.11",
+    "axe-core": "^4.13.0",
     "jsdom": "^26.1.0",
     "tailwindcss": "^4.3.3",
     "vite": "^8.2.0",

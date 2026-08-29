@@ -4,15 +4,19 @@ class RolePolicy < ApplicationPolicy
   end
 
   def create?
-    user&.can?("roles.manage")
+    user&.can?("roles.create")
+  end
+
+  def show?
+    user&.can?("roles.view")
   end
 
   def update?
-    user&.can?("roles.manage")
+    user&.can?("roles.update")
   end
 
   def destroy?
-    user&.can?("roles.manage") && record.destroyable?
+    user&.can?("roles.delete") && record.destroyable?
   end
 
   class Scope < ApplicationPolicy::Scope

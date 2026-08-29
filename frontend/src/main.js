@@ -3,8 +3,10 @@ import './style.css'
 import App from './App.vue'
 import router from './router'
 import { reportAppError } from './services/errorState'
+import { initObservability } from './services/observability'
 
 const app = createApp(App)
+initObservability(app, router)
 
 app.config.errorHandler = (error, instance, info) => {
   console.error('Vue application error:', error, info)

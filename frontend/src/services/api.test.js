@@ -27,11 +27,44 @@ describe('apiFetch', () => {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         'X-CSRF-Token': 'csrf-token',
+        'X-Request-ID': expect.any(String),
       }),
     }))
   })
 
+  it('lets the browser set the multipart boundary for FormData', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ token: 'csrf-token' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ avatar_url: '/avatar' }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { apiFetch } = await import('./api')
+    const body = new FormData()
+    body.append('avatar', new Blob(['image']), 'avatar.png')
+
+    await apiFetch('/api/v1/profile', { method: 'PATCH', body })
+
+    expect(fetchMock.mock.calls[1][1].headers['Content-Type']).toBeUndefined()
+  })
+
   it('turns JSON API failures into errors with an HTTP status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      error: { code: 'FORBIDDEN', message: 'Ditolak', details: { permission: ['required'] } },
+    }), {
+      status: 403,
+      headers: { 'Content-Type': 'application/json' },
+    })))
+    const { apiFetch } = await import('./api')
+
+    await expect(apiFetch('/api/v1/protected')).rejects.toMatchObject({
+      message: 'Ditolak',
+      status: 403,
+      code: 'FORBIDDEN',
+      details: { permission: ['required'] },
+      requestId: expect.any(String),
+    })
+  })
+
+  it('keeps compatibility with legacy string errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Ditolak' }), {
       status: 403,
       headers: { 'Content-Type': 'application/json' },

@@ -1,18 +1,19 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
+import { computed } from "vue";
 import AdminLayout from "../components/admin/AdminLayout.vue";
-import { apiFetch, currentUser } from "../services/api";
-import { toast } from "../services/toast";
 import { t } from "../services/i18n";
 import DataTable from "../components/DataTable.vue";
+import { useServerTable } from "../services/serverTable";
 
-const router = useRouter();
-const admin = ref(null);
-const logs = ref([]);
-const logoutLoading = ref(false);
-const loading = ref(false);
-const totalLogs = ref(0);
+const {
+  items: logs,
+  loading,
+  pagination,
+  load: loadLogs,
+} = useServerTable({
+  endpoint: "/api/v1/admin/audit_logs",
+  collectionKey: "audit_logs",
+});
 const columns = computed(() => [
   { key: "action", label: t("audit.action") },
   { key: "actor_email", label: t("audit.actor") },
@@ -20,46 +21,10 @@ const columns = computed(() => [
   { key: "ip_address", label: "IP" },
   { key: "created_at", label: t("audit.time") },
 ]);
-
-async function logout() {
-  if (logoutLoading.value) return;
-  logoutLoading.value = true;
-  try {
-    await apiFetch("/api/v1/session", { method: "DELETE" });
-    await router.push("/login");
-  } catch (requestError) {
-    toast.error(requestError.message);
-  } finally {
-    logoutLoading.value = false;
-  }
-}
-
-async function loadLogs(options = { page: 1, per_page: 10 }) {
-  if (loading.value) return;
-  loading.value = true;
-  try {
-    const query = new URLSearchParams(Object.entries(options).filter(([, value]) => value !== "")).toString();
-    const response = await apiFetch(`/api/v1/admin/audit_logs?${query}`);
-    logs.value = response.audit_logs;
-    totalLogs.value = response.pagination.total;
-  } catch (requestError) {
-    toast.error(requestError.message);
-  } finally { loading.value = false; }
-}
-
-onMounted(async () => {
-  try { admin.value = await currentUser(); }
-  catch (requestError) { toast.error(requestError.message); }
-});
 </script>
 
 <template>
-  <AdminLayout
-    :email="admin?.email_address"
-    :permissions="admin?.permissions"
-    :logout-loading="logoutLoading"
-    @logout="logout"
-  >
+  <AdminLayout>
     <div class="mx-auto max-w-[1536px]">
       <div class="mb-6">
         <h1 class="text-2xl font-semibold text-gray-900 dark:text-white">
@@ -73,7 +38,7 @@ onMounted(async () => {
         :loading="loading"
         :empty-text="t('audit.empty')"
         server-mode
-        :total="totalLogs"
+        :total="pagination.total"
         @request="loadLogs"
         ><template #cell-action="{ item }"
           ><span class="font-medium dark:text-white">{{

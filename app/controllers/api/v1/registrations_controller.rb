@@ -3,7 +3,7 @@ module Api
     class RegistrationsController < ApplicationController
       allow_unauthenticated_access only: :create
       rate_limit to: 5, within: 10.minutes, only: :create,
-        with: -> { render json: { error: "Terlalu banyak pendaftaran. Coba lagi nanti." }, status: :too_many_requests }
+        with: -> { render_api_error("REGISTRATION_RATE_LIMITED", status: :too_many_requests) }
 
       def create
         existing_user = User.find_by(email_address: params[:email_address].to_s.strip.downcase)
@@ -15,22 +15,21 @@ module Api
         User.transaction do
           user.save!
           challenge, code = LoginChallenge.issue_for!(user)
-          LoginOtpMailer.with(user: user, code: code).verification_code.deliver_now
+          LoginOtpMailer.with(user: user, code: code).verification_code.deliver_later
           AuditLog.record!(action: "user.registered", actor: user, auditable: user, request: request)
 
           render json: challenge_json(challenge, account_unverified: false), status: :created
         end
       rescue ActiveRecord::RecordInvalid
-        render json: { error: user.errors.full_messages.to_sentence, errors: user.errors.to_hash },
-          status: :unprocessable_content
+        render_validation_error(user)
       rescue ActiveRecord::RecordNotUnique
-        render json: { error: "Email sudah terdaftar." }, status: :unprocessable_content
+        render_api_error("EMAIL_ALREADY_REGISTERED", status: :unprocessable_content)
       end
 
       private
         def continue_unverified_registration(user)
           challenge, code = LoginChallenge.issue_for!(user)
-          LoginOtpMailer.with(user: user, code: code).verification_code.deliver_now
+          LoginOtpMailer.with(user: user, code: code).verification_code.deliver_later
           render json: challenge_json(challenge, account_unverified: true), status: :accepted
         end
 

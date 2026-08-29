@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+bin/rails db:prepare
+bin/rails runner 'records = [ActiveRecord::Base, SolidQueue::Record]; abort "Readiness check failed" unless records.all? { |record| record.connection.select_value("SELECT 1").to_i == 1 }'

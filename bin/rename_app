@@ -14,15 +14,17 @@ end
 class_name = name.split("_").map(&:capitalize).join
 title = name.split("_").map(&:capitalize).join(" ")
 uppercase_name = name.upcase
+npm_name = name.tr("_", "-")
 
 replacements = {
-  "TOURPLAN" => uppercase_name,
-  "Tourplan" => class_name,
-  "tourplan" => name
+  "VUE_RAILS" => uppercase_name,
+  "Vue Rails" => title,
+  "VueRails" => class_name,
+  "vue_rails" => name
 }
 
 paths = %w[
-  AGENTS.md Dockerfile README.md app config db frontend/src frontend/package.json
+  AGENTS.md Dockerfile README.md app config db frontend/index.html frontend/src frontend/package.json
 ]
 
 files = paths.flat_map do |path|
@@ -41,8 +43,15 @@ files.each do |file|
 end
 
 package_path = root.join("frontend/package.json")
-package = package_path.read.sub('"name": "frontend"', %("name": "#{name}-frontend"))
+package = package_path.read.sub(/"name": "[^"]+-frontend"|"name": "frontend"/, %("name": "#{npm_name}-frontend"))
 package_path.write(package)
+
+index_path = root.join("frontend/index.html")
+index = index_path.read
+  .sub(%r{<title>.*?</title>}, "<title>#{title}</title>")
+  .sub(/(<meta\s+name="description"\s+content=")[^"]*("\s*\/?>)/m, "\\1#{title} — aplikasi berbasis Rails dan Vue.\\2")
+  .sub(/<meta name="application-name" content=".*?" \/>/, %(<meta name="application-name" content="#{title}" />))
+index_path.write(index)
 
 puts "Renamed application to #{title} (#{class_name})"
 puts "Database prefix: #{name}"

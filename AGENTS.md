@@ -26,10 +26,28 @@ default.
 - Public member registration is handled by `Api::V1::RegistrationsController`.
 - Password recovery is handled by `Api::V1::PasswordResetsController` and uses
   Rails' native `password_reset_token`; it must never create an authenticated session.
+- Authentication and recovery email must use `deliver_later` through
+  `MailDeliveryJob` on the `mailers` queue. Production runs `bin/jobs` separately;
+  never reintroduce request-blocking `deliver_now`. Retry only transient delivery
+  failures with bounded attempts and cover queue behavior with tests.
 - Authorization policies are under `app/policies`.
 - Authentication helpers are in `app/controllers/concerns/authentication.rb`.
 - Vue application code is under `frontend/src`.
 - Frontend API requests go through `frontend/src/services/api.js`.
+- Every frontend API request carries a generated `X-Request-ID`. Preserve and expose
+  it through proxies/CORS, attach the response ID to API errors, and include it in
+  monitoring context. Never log passwords, email, OTP, reset tokens, cookies, or bodies.
+- Frontend authentication state must go through the singleton `useAuth()` composable in
+  `frontend/src/services/auth.js`. Do not call `currentUser()` independently from routes,
+  layouts, or pages, duplicate logout handlers, or inspect permission arrays directly.
+  Use `loadUser`, `setUser`, `logout`, `can`, and `canAny`; successful login/verification
+  must update the shared user and logout must clear it. Keep concurrent session requests
+  deduplicated and cache both authenticated and anonymous results.
+- Server-backed Vue tables must use `useServerTable()` from
+  `frontend/src/services/serverTable.js` for items, loading, query serialization,
+  standardized pagination state, response hooks, row replacement/removal, error toasts,
+  and stale-response protection. Do not duplicate table request/loading/total logic in
+  page components. Business-specific payload transformations remain at the call site.
 - Every new user-facing feature must ship Indonesian and English translations together.
   Vue strings must use `t()` from `frontend/src/services/i18n.js`, and Rails responses
   must use matching locale keys under both `config/locales/id.yml` and `en.yml`;
@@ -48,7 +66,13 @@ default.
 - Vue routes are defined in `frontend/src/router.js`.
 - The admin shell is `frontend/src/components/admin/AdminLayout.vue`.
 - Rails routes are defined in `config/routes.rb`.
+- `docs/openapi.yml` is the authoritative public API contract. Every endpoint change
+  must update paths, operation IDs, security, parameters, request/response schemas,
+  status codes, and shared components in the same change. Contract tests must keep
+  concrete `/api/v1` routes, CSRF requirements, pagination, and error schemas aligned.
 - PostgreSQL configuration is in `config/database.yml`.
+- Operational backup/restore commands are `bin/backup` and `bin/restore`; the reviewed
+  production procedures are authoritative in `docs/operations.md`.
 
 ## Development Commands
 
@@ -79,14 +103,101 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 - Never run `git push` unless the user explicitly asks to push in the current request.
   Completing a code change does not imply permission to push. Leave changes in the
   working tree unless the user also explicitly requests a commit.
+- Production exception monitoring is optional and configured only through Sentry
+  environment variables. Keep Rails/Vue releases aligned, default PII disabled, and
+  trace sampling explicit and conservative. The app must work with monitoring disabled;
+  production Rails logs remain structured JSON with request ID.
+- Keep `/up` as a dependency-free liveness probe and `/api/v1/readiness` as the
+  dependency probe for PostgreSQL and Solid Queue storage. Add every new mandatory
+  runtime dependency to readiness with success/failure tests without exposing internals.
+- Production boot validates required environment variables and rejects placeholder or
+  insecure values, except during `SECRET_KEY_BASE_DUMMY` image compilation. Update
+  `.env.example`, validation, rename/bootstrap behavior, and docs together for new vars.
+- Never run `db:prepare` from every web entrypoint. Run `bin/release` exactly once before
+  switching traffic, then start web and `bin/jobs` as separate processes from the same
+  immutable image. Database rollback is always explicit and reviewed.
 - Keep Rails controllers JSON-only under `/api/v1`.
 - Return JSON errors for API authentication and authorization failures.
+- Every failed API response must use the shared `render_api_error` contract:
+  `{ error: { code, message, details } }`. Codes are stable uppercase identifiers,
+  messages come from matching `api.errors` keys in both Rails locales, and `details` is
+  always an object (field validation errors belong there). Never render a bare error
+  string, leak exception text, or make frontend behavior depend on translated messages.
+- Use `render_validation_error(record)` for Active Model validation failures. Add a new
+  bilingual locale entry and tests whenever a new API error code is introduced. The Vue
+  API client must expose HTTP `status`, API `code`, `message`, and `details`, while keeping
+  temporary compatibility with legacy string errors during migrations.
+- Treat the API error contract as mandatory for every new or changed endpoint and every
+  failure status, including malformed requests (400), unauthenticated access (401),
+  forbidden actions (403), missing routes/records (404), validation and CSRF failures
+  (422), rate limits (429), and unexpected server errors (500). API failures must never
+  fall through to an HTML error page or produce a JSON shape unique to one controller.
+- Before handing off API work, search for bare `render json: { error: ... }` responses and
+  replace them with the shared helpers. Tests must assert the HTTP status, stable error
+  code, translated message where relevant, and that `details` is always an object. Add
+  frontend client coverage whenever parsing or consuming the error payload changes.
+- Choose error codes by meaning rather than UI wording, keep them uppercase snake case,
+  and do not rename an existing code casually because clients may depend on it. Business
+  logic uses `error.code`; user feedback uses the localized `error.message`; field forms
+  use `error.details`. Never branch application behavior by matching message text.
 - Use Rails' native authentication flow; do not introduce Devise.
 - Add a Pundit policy for protected resources and call `authorize` in controllers.
+- Every new protected page or resource must add database-backed permissions in the same
+  change. Use `resource.view` for page/list/detail access and add only the mutation keys
+  actually supported by the feature: `resource.create`, `resource.update`, and
+  `resource.delete`. Use a specific verb such as `orders.approve`, `users.export`, or
+  `reports.download` for sensitive actions that do not fit CRUD.
+- Permission work is incomplete unless it includes an idempotent production migration,
+  updated seeds, automatic assignment to the administrator role, dependency rules (for
+  example, update implies view), Indonesian and English names/descriptions, Pundit policy
+  checks, controller `authorize` calls, Vue route/menu/action visibility, and tests for
+  both allowed and forbidden access. Never rely on frontend hiding as authorization.
+- Do not create permissions for purely presentational controls such as filters,
+  pagination, tabs, modal open/close, or ordinary form fields. Require a separate
+  permission for server-side mutations, destructive operations, sensitive data access,
+  exports/downloads, approvals, impersonation, or other privileged business actions.
 - Keep credentials and generated admin passwords out of Git.
+- Treat backup as incomplete until restore is tested against an isolated database. Keep
+  dumps outside the release, mode `0600`, encrypted off-site, and governed by explicit
+  retention. Never restore over production without `RESTORE_CONFIRM`, a fresh backup,
+  and an approved incident plan.
+- Retain sessions, login challenges, audit logs, finished queue jobs, and unattached
+  uploads through scheduled bounded jobs. Retention durations come from environment
+  variables and destructive cleanup must be idempotent and covered by tests.
+- Every mandatory runtime datastore must have a readiness check. Queue monitoring uses
+  Solid Queue's separate database in every environment; never query private queue tables
+  from the Vue client or expose job arguments/backtraces, which may contain sensitive data.
+- Failed-job retry/discard requires `jobs.update`, must create an audit log, and must use
+  per-row loading plus confirmation toast. Queue listing requires `jobs.view`, reusable
+  server pagination, bounded search, and lazy route loading.
+- Active Storage is the native upload system. Validate MIME type and byte size on the
+  model/server, use multipart `FormData` without forcing a JSON Content-Type, authorize
+  ownership, audit mutations, and support local plus environment-configured S3-compatible
+  storage. Never trust the browser filename or MIME declaration alone.
+- New authentication sessions must enforce `MAX_ACTIVE_SESSIONS`, store IP/user-agent,
+  notify the account by email, and be user-revocable. Record successful, failed, revoked,
+  and password-change events without storing plaintext credentials, OTP/token values, or
+  raw attempted email addresses. Password changes revoke all sessions and send a security
+  notification asynchronously.
+- Swagger UI is an admin-only lazy-loaded viewer for the committed `docs/openapi.yml`;
+  access requires `api_docs.view`. It never replaces contract tests or permits production
+  credentials to be persisted in browser storage.
+- `bin/generate_admin_resource` validates plural snake_case resource names and is the
+  starting checklist for new admin resources. Generated work is not complete until route,
+  Pundit policy, permissions/migration/seeds/fixtures, server pagination, OpenAPI, bilingual
+  UI, lazy route/menu, TailAdmin DataTable/form/modal patterns, audit, and tests are present.
+- E2E coverage must include the happy authentication path, forbidden member access, core
+  admin pages, session management, role/permission disclosure, job monitoring, API docs,
+  and at least desktop plus iPad/mobile navigation behavior. Do not make E2E depend on
+  production services; use isolated test databases and local mail delivery.
 - Put reusable starter functionality here; business-specific code belongs in a
   project created from this template.
 - Preserve existing user changes and avoid unrelated rewrites.
+- Never leave framework/template placeholder branding in user-facing metadata or assets,
+  including `frontend`, `Vite`, default favicons, generic document titles, descriptions,
+  application names, and theme colors. `frontend/index.html` must identify the current
+  application, use the default Indonesian document language, and follow the TailAdmin
+  brand palette. `bin/rename_app` must update document metadata for generated projects.
 
 ## UI and UX Standards
 
@@ -94,6 +205,15 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   component, form, table, modal, dropdown, navigation element, icon treatment, loading
   state, and interaction pattern. Follow the existing TailAdmin template and its reusable
   components exactly; do not invent an independent design or visual pattern.
+- This TailAdmin-first rule applies without exception to both public and admin UI,
+  including authentication and error pages, buttons, inputs, textareas, selects,
+  checkboxes, toggles, cards, badges, tabs, breadcrumbs, pagination, toasts, dialogs,
+  empty states, skeletons, spinners, tooltips, popovers, headers, sidebars, and responsive
+  behavior. TailAdmin is the first reference for every element and UX decision.
+- Do not introduce a UI library, component style, or interaction convention from another
+  template when TailAdmin already provides an equivalent. A third-party component may be
+  used only when explicitly approved by the user and must be visually adapted to the
+  existing TailAdmin system.
 - Before creating or changing UI, inspect the relevant existing TailAdmin component or
   pattern in this repository and reuse it. If no relevant TailAdmin reference exists,
   ask the user for direction before designing a new pattern.
@@ -103,6 +223,26 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   server request. Do not silently introduce a modal.
 - Use Tailwind CSS utilities and the existing TailAdmin admin shell. Reuse shared
   TailAdmin-based components before introducing any page-specific variant.
+- Every modal must use the shared TailAdmin `frontend/src/components/AppModal.vue`;
+  do not duplicate Teleport, backdrop, header, close, scroll-lock, Escape, or footer
+  markup in page components. Nested modals must use the shared modal stack so Escape
+  closes only the top modal, and modal behavior requires component regression tests.
+- A modal that edits server-backed resource data must open immediately, lazy-load the
+  current detail through a dedicated authorized `show` endpoint, and display AppModal's
+  blocking spinner until the request completes. Disable closing and interaction while
+  loading, protect against stale responses, show API failures through toast, and never
+  preload every row's edit payload. Purely local disclosure modals such as a permission
+  “More” picker reuse AppModal but must not make a redundant server request.
+- Standard forms must compose `FormField.vue` with `TextInput.vue`,
+  `TextareaInput.vue`, `ToggleInput.vue`, and `SelectInput.vue`; do not duplicate labels,
+  help/error text, or raw page-specific control styles. Raw inputs are limited to
+  specialized reusable internals such as DataTable search and permission checkboxes.
+- Forms that call the API must use `useFormErrors()` to map the standardized
+  `error.details` payload to matching field names, clear a field's error when it changes,
+  retain the global error toast, and focus the first invalid control. Every Rails
+  validation field returned to Vue must match the form control's `name`. FormField and
+  its shared controls must preserve label, help, error, `aria-describedby`, and
+  `aria-invalid` associations; do not implement page-local validation-error markup.
 - Keep colors restrained to brand blue, neutral gray, and error red. Do not add new
   decorative color families or gradients without an explicit product requirement.
 - Use the shared form-control rules in `frontend/src/style.css` for every input,
@@ -116,12 +256,43 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   `frontend/src/components/DataTable.vue`; do not add plain tables. DataTable views must
   provide search, sortable columns, page-size selection, pagination, result counts,
   loading state, empty state, responsive overflow, and both `id`/`en` translations.
+- Keep resource tables read-only and concise. Do not place editable inputs, selects,
+  textareas, permission grids, or active controls directly in rows. Use AppModal for
+  multi-field editing and follow the server-backed modal lazy-loading rule above. Submit
+  to the server only when the user has made an actual change.
+- Table actions must use consistent Lucide icons: Pencil for edit, Save for save, and
+  Trash2 for delete. On desktop widths of 1280px and above, show icon plus translated
+  label; below 1280px (including iPad and mobile), show an icon-only square control with
+  localized `aria-label` and `title`. Loading replaces the action icon with a spinner.
+- Render edit/save/delete actions through the reusable TailAdmin
+  `frontend/src/components/TableActionButton.vue`; do not recreate responsive action
+  sizing, colors, icons, loading, disabled state, labels, or accessibility per table.
+- Clamp long table descriptions to two lines and expose the complete value through a
+  title or TailAdmin tooltip. Put related counts or statuses in their own compact columns
+  instead of mixing controls and secondary content into description cells.
+- Treat read-only and disabled states as different UX states. Read-only content cannot
+  be changed, but disclosure controls such as More, View details, accordions, tabs, and
+  modal open/close controls must remain usable. Never disable a parent component merely
+  to lock its editable fields; test that users can still inspect all hidden content.
+- AppModal must trap keyboard focus inside the top-most dialog, support Escape, focus an
+  appropriate control when opened, and restore focus to its opener when closed. New or
+  materially changed shared UI must include axe-core regression coverage plus explicit
+  keyboard/focus assertions where jsdom can verify behavior. Never treat automated axe
+  checks as a replacement for semantic labels, visible focus, or responsive manual QA.
 - While a DataTable request is active, show its built-in TailAdmin spinner overlay,
   set `aria-busy`, dim the table, and block table controls until loading finishes.
 - DataTable API endpoints must use server-side pagination and allow at most 50 rows per
   request. Load only the active page, debounce remote search, whitelist sortable columns,
   and never fetch an entire unbounded table up front. Route lazy loading must ensure
   tables on unopened pages make no request.
+- Every paginated Rails endpoint must use the shared `ApiPagination#paginate_api` concern;
+  do not duplicate page, per-page, search, sort, direction, offset, or metadata logic in
+  controllers. Declare explicit search and sortable-column whitelists at each call site.
+- Paginated responses always return `pagination: { page, per_page, total, total_pages }`.
+  The concern clamps page values, enforces 5–50 rows per request, limits search input,
+  escapes SQL wildcard characters, rejects non-whitelisted sorting through a safe
+  fallback, and adds deterministic ordering. Add regression tests for metadata, maximum
+  page size, invalid parameters, search behavior, and authorization for new resources.
 - Use `frontend/src/components/AsyncButton.vue` for every asynchronous action. Show a
   spinner and contextual loading text, disable the button while processing, and prevent
   duplicate submissions.
@@ -139,7 +310,9 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   User and role pages stay grouped under the expandable User Management tree.
 - Use Lucide icons consistently. Prefer simple flat icons and avoid ornamental,
   AI-styled, emoji, or mismatched icon treatments.
-- User verification status uses check/X icons. User active status uses a toggle switch.
+- User verification status uses check/X icons. In read-only tables, user active status
+  uses a TailAdmin status badge; the active-status edit control uses a toggle switch only
+  inside the edit modal.
 - Keep 403, 404, and application-error pages available and bilingual.
 
 ## Localization Standards
@@ -169,12 +342,23 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   `SUPPORT_EMAIL`; wrong credentials must not reveal account status.
 - Password recovery is email-link based. The signed reset token must be validated before
   accepting a new password, and a successful reset revokes all existing sessions.
+- Active-device management is always scoped to `Current.user.sessions` through
+  `SessionPolicy`; never find a revocable session globally. Listing requires
+  `sessions.view`, revocation requires `sessions.delete`, the current session is visibly
+  marked, and security actions create audit logs. Every successful new session queues a
+  bilingual login-notification email containing time, IP, and user-agent but no secrets.
 
 ## Verification
 
 - Run focused Rails tests while developing, then `bin/rails test` before handoff.
 - For frontend changes, run `npm run build --prefix frontend`.
 - Run `npm test --prefix frontend` for Vue unit/component changes.
+- Run `npm run test:coverage --prefix frontend` before handoff when reusable frontend
+  code changes. CI enforces the committed Vitest line/function/branch/statement floors
+  and uploads the HTML report; do not lower a threshold merely to make a change pass.
+- Rails tests always produce SimpleCov output under `tmp/coverage`; CI enforces line and
+  branch floors. New backend branches and new reusable frontend states require tests so
+  coverage does not regress. Coverage artifacts must remain untracked.
 - Run Playwright E2E for authentication or cross-stack flow changes when a browser is available.
 - For Ruby changes, run `bin/rubocop`.
 - For security-sensitive or dependency changes, also run the security audit

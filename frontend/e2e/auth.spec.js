@@ -44,7 +44,7 @@ test('member can register and verify email with OTP', async ({ page }) => {
   await page.goto('/register')
   await page.getByLabel('Email').fill(email)
   await page.locator('input[autocomplete="new-password"]').first().fill('member-secure-password')
-  await page.getByLabel('Konfirmasi password').fill('member-secure-password')
+  await page.getByLabel('Konfirmasi kata sandi').fill('member-secure-password')
   await page.getByRole('button', { name: 'Daftar', exact: true }).click()
 
   const mail = await waitForNewMail(beforeMail)
@@ -53,6 +53,10 @@ test('member can register and verify email with OTP', async ({ page }) => {
   await page.getByRole('button', { name: 'Verifikasi dan masuk' }).click()
 
   await expect(page).toHaveURL('/')
+
+  await page.goto('/admin')
+  await expect(page).toHaveURL('/403')
+  await expect(page.getByRole('heading', { name: 'Akses ditolak' })).toBeVisible()
 })
 
 test('admin can login with password and email OTP', async ({ page }) => {
@@ -60,7 +64,7 @@ test('admin can login with password and email OTP', async ({ page }) => {
 
   await page.goto('/login')
   await page.getByLabel('Email').fill(adminEmail)
-  await page.getByLabel('Password').fill(initialAdminPassword)
+  await page.getByLabel('Kata sandi').fill(initialAdminPassword)
   await page.getByRole('button', { name: 'Login', exact: true }).click()
 
   const mail = await waitForNewMail(beforeMail)
@@ -69,7 +73,39 @@ test('admin can login with password and email OTP', async ({ page }) => {
   await page.getByRole('button', { name: 'Verifikasi', exact: true }).click()
 
   await expect(page).toHaveURL('/admin')
-  await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Dasbor' })).toBeVisible()
+
+  await page.goto('/admin/users')
+  await expect(page.getByRole('heading', { name: 'Manajemen pengguna' })).toBeVisible()
+  await expect(page.getByRole('table')).toBeVisible()
+
+  await page.goto('/admin/roles')
+  await expect(page.getByRole('heading', { name: 'Manajemen role' })).toBeVisible()
+  await expect(page.getByRole('table')).toBeVisible()
+  await page.getByRole('button', { name: /Edit role/ }).first().click()
+  const editRoleDialog = page.getByRole('dialog', { name: 'Edit role' })
+  await expect(editRoleDialog).toBeVisible()
+  await editRoleDialog.getByRole('button', { name: /Lainnya/ }).click()
+  await expect(page.getByRole('dialog', { name: 'Pilih permission' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await page.keyboard.press('Escape')
+
+  await page.goto('/admin/sessions')
+  await expect(page.getByRole('heading', { name: 'Perangkat aktif' })).toBeVisible()
+  await expect(page.getByText('Saat ini')).toBeVisible()
+
+  await page.goto('/admin/audit-logs')
+  await expect(page.getByRole('heading', { name: 'Log audit' })).toBeVisible()
+
+  await page.goto('/admin/jobs')
+  await expect(page.getByRole('heading', { name: 'Antrean job' })).toBeVisible()
+
+  await page.goto('/admin/api-docs')
+  await expect(page.getByRole('heading', { name: 'Dokumentasi API' })).toBeVisible()
+  await expect(page.locator('#swagger-ui')).toContainText('Vue Rails API')
+
+  await page.setViewportSize({ width: 768, height: 1024 })
+  await expect(page.getByRole('button', { name: 'Buka menu' })).toBeVisible()
 })
 
 test('user can reset password from a signed email link', async ({ page }) => {
@@ -80,13 +116,13 @@ test('user can reset password from a signed email link', async ({ page }) => {
   await page.getByRole('button', { name: 'Kirim link reset' }).click()
 
   const mail = await waitForNewMail(beforeMail)
-  const resetUrl = mail.match(/http:\/\/localhost:5173\/reset-password\?token=[^"<\s]+/)[0]
+  const resetUrl = mail.match(/http:\/\/127\.0\.0\.1:5273\/reset-password\?token=[^"<\s]+/)[0]
   await page.goto(resetUrl)
-  await expect(page.getByLabel('Password baru')).toBeVisible()
-  await page.getByLabel('Password baru').fill('new-e2e-admin-password')
-  await page.getByLabel('Konfirmasi password').fill('new-e2e-admin-password')
-  await page.getByRole('button', { name: 'Simpan password baru' }).click()
+  await expect(page.getByLabel('Kata sandi baru')).toBeVisible()
+  await page.getByLabel('Kata sandi baru').fill('new-e2e-admin-password')
+  await page.getByLabel('Konfirmasi kata sandi').fill('new-e2e-admin-password')
+  await page.getByRole('button', { name: 'Simpan kata sandi baru' }).click()
 
   await expect(page).toHaveURL(/\/login\?reset=success/)
-  await expect(page.getByText('Password berhasil diperbarui')).toBeVisible()
+  await expect(page.getByText('Kata sandi berhasil diperbarui. Silakan login.')).toBeVisible()
 })

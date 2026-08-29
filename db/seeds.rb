@@ -10,16 +10,28 @@ permissions = {
   "users.view" => [ "Lihat users", "Melihat daftar dan detail user." ],
   "users.update" => [ "Ubah users", "Mengubah role dan status user." ],
   "roles.view" => [ "Lihat roles", "Melihat daftar role dan permission." ],
-  "roles.manage" => [ "Kelola roles", "Membuat, mengubah, dan menghapus role serta permission." ],
-  "audit_logs.view" => [ "Lihat audit logs", "Melihat riwayat aktivitas keamanan." ]
+  "roles.create" => [ "Buat role", "Membuat role baru dan menetapkan permission awal." ],
+  "roles.update" => [ "Ubah role", "Mengubah nama, deskripsi, dan permission role." ],
+  "roles.delete" => [ "Hapus role", "Menghapus role kustom yang tidak digunakan." ],
+  "audit_logs.view" => [ "Lihat audit logs", "Melihat riwayat aktivitas keamanan." ],
+  "sessions.view" => [ "Lihat perangkat", "Melihat perangkat dan sesi login milik sendiri." ],
+  "sessions.delete" => [ "Hapus sesi", "Mengakhiri sesi login milik sendiri." ],
+  "jobs.view" => [ "Lihat antrean job", "Melihat status antrean dan job gagal." ],
+  "jobs.update" => [ "Kelola job gagal", "Mencoba ulang atau menghapus job gagal." ],
+  "api_docs.view" => [ "Lihat dokumentasi API", "Membuka dokumentasi OpenAPI interaktif." ]
 }
 permissions.each do |key, (name, description)|
-  Permission.find_or_create_by!(key: key) { |permission| permission.assign_attributes(name: name, description: description) }
+  Permission.find_or_initialize_by(key: key).tap do |permission|
+    permission.update!(name: name, description: description)
+  end
 end
+Permission.where(key: "roles.manage").destroy_all
 Role.find_by!(key: "admin").permissions = Permission.all
+session_permissions = Permission.where(key: %w[sessions.view sessions.delete])
+Role.where.not(key: "admin").find_each { |role| role.permissions |= session_permissions }
 
 if Rails.env.development?
-  admin = User.find_or_initialize_by(email_address: ENV.fetch("ADMIN_EMAIL", "admin@tourplan.local"))
+  admin = User.find_or_initialize_by(email_address: ENV.fetch("ADMIN_EMAIL", "admin@vue_rails.local"))
 
   if admin.new_record?
     admin.password = ENV.fetch("ADMIN_PASSWORD") do

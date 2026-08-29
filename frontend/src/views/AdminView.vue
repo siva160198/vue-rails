@@ -1,6 +1,5 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
-import { useRouter } from "vue-router";
 import {
   Activity,
   ArrowDownRight,
@@ -16,10 +15,8 @@ import { t } from "../services/i18n";
 import DataTable from "../components/DataTable.vue";
 import SelectInput from "../components/SelectInput.vue";
 
-const router = useRouter();
 const dashboard = ref(null);
 const loadFailed = ref(false);
-const logoutLoading = ref(false);
 
 const cards = computed(() =>
   dashboard.value
@@ -83,28 +80,10 @@ onMounted(async () => {
     toast.error(requestError.message);
   }
 });
-
-async function logout() {
-  if (logoutLoading.value) return;
-  logoutLoading.value = true;
-  try {
-    await apiFetch("/api/v1/session", { method: "DELETE" });
-    await router.push("/login");
-  } catch (requestError) {
-    toast.error(requestError.message);
-  } finally {
-    logoutLoading.value = false;
-  }
-}
 </script>
 
 <template>
-  <AdminLayout
-    :email="dashboard?.user.email_address"
-    :permissions="dashboard?.user.permissions"
-    :logout-loading="logoutLoading"
-    @logout="logout"
-  >
+  <AdminLayout>
     <div class="mx-auto max-w-[1536px]">
       <div
         class="mb-6 flex flex-col justify-between gap-3 sm:flex-row sm:items-center"

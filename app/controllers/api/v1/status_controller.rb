@@ -6,7 +6,7 @@ module Api
 
         render json: {
           status: "ok",
-          application: "tourplan",
+          application: "vue_rails",
           database: {
             adapter: connection.adapter_name,
             name: connection.current_database

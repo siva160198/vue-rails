@@ -10,9 +10,36 @@ admin_users_update:
 admin_roles_view:
   role: admin
   permission: roles_view
-admin_roles_manage:
+admin_roles_create:
   role: admin
-  permission: roles_manage
+  permission: roles_create
+admin_roles_update:
+  role: admin
+  permission: roles_update
+admin_roles_delete:
+  role: admin
+  permission: roles_delete
 admin_audit_logs:
   role: admin
   permission: audit_logs_view
+admin_sessions_view:
+  role: admin
+  permission: sessions_view
+admin_sessions_delete:
+  role: admin
+  permission: sessions_delete
+admin_jobs_view:
+  role: admin
+  permission: jobs_view
+admin_jobs_update:
+  role: admin
+  permission: jobs_update
+admin_api_docs_view:
+  role: admin
+  permission: api_docs_view
+member_sessions_view:
+  role: member
+  permission: sessions_view
+member_sessions_delete:
+  role: member
+  permission: sessions_delete

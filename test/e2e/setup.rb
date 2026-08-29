@@ -8,3 +8,6 @@ admin.assign_attributes(
 admin.save!
 admin.sessions.destroy_all
 admin.login_challenges.destroy_all
+
+member_role = Role.find_by!(key: "member")
+member_role.permissions = Permission.where(key: %w[sessions.view sessions.delete])

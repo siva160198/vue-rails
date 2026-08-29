@@ -23,6 +23,8 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :created
     assert_equal "admin", response.parsed_body.dig("user", "role")
+    assert_equal 2, ActionMailer::Base.deliveries.size
+    assert_match "Login baru terdeteksi", ActionMailer::Base.deliveries.last.body.encoded
 
     get api_v1_session_url, as: :json
     assert_response :success
@@ -46,7 +48,7 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
       headers: { "Accept-Language" => "en-US,en;q=0.9" }, as: :json
 
     assert_response :unauthorized
-    assert_equal "Invalid email or password.", response.parsed_body["error"]
+    assert_api_error "INVALID_CREDENTIALS", message: "Invalid email or password."
   end
 
   test "inactive account receives a support contact message after valid credentials" do
@@ -57,7 +59,7 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
       params: { email_address: user.email_address, password: "password" }, as: :json
 
     assert_response :forbidden
-    assert_equal "Akun Anda nonaktif. Silakan hubungi example@mail.com.", response.parsed_body["error"]
+    assert_api_error "ACCOUNT_INACTIVE", message: "Akun Anda nonaktif. Silakan hubungi example@mail.com."
     assert_empty ActionMailer::Base.deliveries
   end
 
@@ -69,7 +71,7 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
       params: { email_address: user.email_address, password: "wrong" }, as: :json
 
     assert_response :unauthorized
-    assert_equal "Email atau password tidak valid.", response.parsed_body["error"]
+    assert_api_error "INVALID_CREDENTIALS", message: "Email atau password tidak valid."
   end
 
   test "verified OTP is trusted in the same browser for one hour" do
@@ -89,7 +91,8 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :created
     assert_equal false, response.parsed_body["otp_required"]
     assert_equal user.id, response.parsed_body.dig("user", "id")
-    assert_empty ActionMailer::Base.deliveries
+    assert_equal 1, ActionMailer::Base.deliveries.size
+    assert_equal "Login baru ke akun Anda", ActionMailer::Base.deliveries.last.subject
   end
 
   test "OTP trust expires after one hour" do
@@ -150,6 +153,26 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "recovery code signs in once and session count is bounded" do
+    user = users(:one)
+    recovery_code = user.regenerate_recovery_codes!.first
+    12.times { user.sessions.create! }
+    challenge, = LoginChallenge.issue_for!(user)
+
+    post verify_otp_api_v1_session_url,
+      params: { challenge_token: challenge.token, code: recovery_code }, as: :json
+
+    assert_response :created
+    assert_operator user.sessions.reload.count, :<=, 10
+    assert_equal "session.recovery_code_login", AuditLog.last.action
+
+    delete api_v1_session_url, as: :json
+    next_challenge, = LoginChallenge.issue_for!(user)
+    post verify_otp_api_v1_session_url,
+      params: { challenge_token: next_challenge.token, code: recovery_code }, as: :json
+    assert_response :unauthorized
+  end
+
   test "expired OTP is rejected" do
     challenge, code = LoginChallenge.issue_for!(users(:one))
     challenge.update!(expires_at: 1.minute.ago)
@@ -167,6 +190,7 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
       params: { challenge_token: challenge.token }, as: :json
 
     assert_response :too_many_requests
+    assert_api_error "OTP_RESEND_TOO_SOON"
   end
 
   test "resending issues a new challenge and invalidates the previous one" do

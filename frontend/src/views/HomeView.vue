@@ -20,7 +20,7 @@ onMounted(async () => {
 <template>
   <main class="px-6 py-16"><section class="mx-auto max-w-5xl">
     <div class="mb-12 max-w-2xl">
-      <p class="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-brand-600">Tourplan</p>
+      <p class="mb-3 text-sm font-semibold uppercase tracking-[0.25em] text-brand-600">Vue Rails</p>
       <h1 class="text-4xl font-bold tracking-tight sm:text-6xl">{{ t('home.title') }}</h1>
       <p class="mt-5 text-lg leading-8 text-slate-600">{{ t('home.subtitle') }}</p>
     </div>

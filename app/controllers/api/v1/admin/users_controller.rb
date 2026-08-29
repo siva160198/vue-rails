@@ -4,19 +4,19 @@ module Api
       class UsersController < ApplicationController
         rate_limit to: 60, within: 1.minute, only: :update,
           by: -> { Current.user&.id || request.remote_ip },
-          with: -> { render json: { error: "Terlalu banyak perubahan. Coba lagi sebentar." }, status: :too_many_requests }
+          with: -> { render_api_error("USER_RATE_LIMITED", status: :too_many_requests) }
 
         def index
           authorize User
-          users = policy_scope(User)
-          users = users.where("email_address ILIKE ?", "%#{User.sanitize_sql_like(params[:search])}%") if params[:search].present?
-          total = users.count
-          per_page = params.fetch(:per_page, 10).to_i.clamp(5, 50)
-          page = [ params.fetch(:page, 1).to_i, 1 ].max
-          sort = %w[email_address role active email_verified_at created_at].include?(params[:sort]) ? params[:sort] : "created_at"
-          users = users.order(sort => (params[:direction] == "asc" ? :asc : :desc)).offset((page - 1) * per_page).limit(per_page)
+          users, pagination = paginate_api(
+            policy_scope(User),
+            search_columns: %w[email_address],
+            sortable_columns: %w[email_address role active email_verified_at created_at],
+            default_sort: :created_at,
+            default_direction: :desc
+          )
 
-          render json: { users: users.map { |user| user_json(user) }, roles: Role.order(:name).pluck(:key, :name).map { |key, name| { key: key, name: name } }, pagination: { total: total } }
+          render json: { users: users.map { |user| user_json(user) }, roles: Role.order(:name).pluck(:key, :name).map { |key, name| { key: key, name: name } }, pagination: pagination }
         end
 
         def update
@@ -43,7 +43,16 @@ module Api
 
           render json: { user: user_json(user) }
         rescue ActiveRecord::RecordInvalid
-          render json: { error: user.errors.full_messages.to_sentence }, status: :unprocessable_content
+          render_validation_error(user)
+        end
+
+        def show
+          user = User.find(params[:id])
+          authorize user
+          render json: {
+            user: user_json(user),
+            roles: Role.order(:name).pluck(:key, :name).map { |key, name| { key: key, name: name } }
+          }
         end
 
         private
@@ -62,7 +71,7 @@ module Api
           end
 
           def render_last_admin_error
-            render json: { error: "Admin aktif terakhir tidak dapat dinonaktifkan atau diturunkan rolenya." }, status: :unprocessable_content
+            render_api_error("LAST_ACTIVE_ADMIN_REQUIRED", status: :unprocessable_content)
           end
 
           def user_json(user)

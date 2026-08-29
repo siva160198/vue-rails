@@ -4,6 +4,7 @@ Rails.application.routes.draw do
   namespace :api do
     namespace :v1 do
       get "status", to: "status#show"
+      get "readiness", to: "readiness#show"
       get "csrf", to: "csrf#show"
       resource :password_reset, only: %i[show create update]
       resource :registration, only: :create
@@ -11,15 +12,27 @@ Rails.application.routes.draw do
         post :verify_otp
         post :resend_otp
       end
+      resources :sessions, only: %i[index destroy], controller: :devices do
+        delete :others, on: :collection, action: :destroy_others
+      end
+      resource :profile, only: %i[update destroy] do
+        post :recovery_codes
+      end
 
       namespace :admin do
         get "dashboard", to: "dashboard#show"
-        resources :users, only: %i[index update]
-        resources :roles, only: %i[index create update destroy]
+        resources :users, only: %i[index show update]
+        resources :roles, only: %i[index show create update destroy]
         resources :audit_logs, only: :index
+        resources :jobs, only: %i[index destroy] do
+          post :retry, on: :member
+        end
+        resource :api_docs, only: :show
       end
     end
   end
+
+  match "/api/*unmatched", to: "api_errors#not_found", via: :all
 
   # Define your application routes per the DSL in https://guides.rubyonrails.org/routing.html
 

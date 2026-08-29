@@ -12,7 +12,7 @@ def system!(*command, env: {})
 end
 
 FileUtils.chdir(root) do
-  if File.read("config/application.rb").include?("module Tourplan")
+  if File.read("config/application.rb").include?("module VueRails")
     system!("bin/rename_app", name)
   else
     puts "Application was already renamed; keeping its current name."

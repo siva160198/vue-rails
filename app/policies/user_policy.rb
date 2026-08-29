@@ -7,6 +7,10 @@ class UserPolicy < ApplicationPolicy
     user&.can?("users.update") && record != user
   end
 
+  def show?
+    user&.can?("users.view")
+  end
+
   class Scope < ApplicationPolicy::Scope
     def resolve
       user&.can?("users.view") ? scope.all : scope.none

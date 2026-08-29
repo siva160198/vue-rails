@@ -14,10 +14,38 @@ roles_view:
   key: roles.view
   name: Lihat roles
 
-roles_manage:
-  key: roles.manage
-  name: Kelola roles
+roles_create:
+  key: roles.create
+  name: Buat role
+
+roles_update:
+  key: roles.update
+  name: Ubah role
+
+roles_delete:
+  key: roles.delete
+  name: Hapus role
 
 audit_logs_view:
   key: audit_logs.view
   name: Lihat audit logs
+
+sessions_view:
+  key: sessions.view
+  name: Lihat perangkat
+
+sessions_delete:
+  key: sessions.delete
+  name: Hapus sesi
+
+jobs_view:
+  key: jobs.view
+  name: Lihat antrean job
+
+jobs_update:
+  key: jobs.update
+  name: Kelola job gagal
+
+api_docs_view:
+  key: api_docs.view
+  name: Lihat dokumentasi API

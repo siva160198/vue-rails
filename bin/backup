@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+require "fileutils"
+require "open3"
+require "time"
+
+backup_dir = File.expand_path(ENV.fetch("BACKUP_DIRECTORY", "../backups"), __dir__)
+retention_days = Integer(ENV.fetch("BACKUP_RETENTION_DAYS", "14"), 10)
+database_url = ENV.fetch("DATABASE_URL")
+FileUtils.mkdir_p(backup_dir, mode: 0o700)
+timestamp = Time.now.utc.strftime("%Y%m%dT%H%M%SZ")
+target = File.join(backup_dir, "vue_rails-#{timestamp}.dump")
+
+command = [ "pg_dump", "--format=custom", "--no-owner", "--no-acl", "--file", target, database_url ]
+abort "Backup failed" unless system(*command)
+File.chmod(0o600, target)
+
+cutoff = Time.now - (retention_days * 86_400)
+Dir.glob(File.join(backup_dir, "vue_rails-*.dump")).each do |path|
+  File.delete(path) if File.mtime(path) < cutoff
+end
+
+puts target

@@ -44,6 +44,7 @@ class Api::V1::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
   test "invalid token cannot open or submit the reset form" do
     get api_v1_password_reset_url, params: { token: "invalid" }, as: :json
     assert_response :unauthorized
+    assert_api_error "INVALID_PASSWORD_RESET_TOKEN"
 
     patch api_v1_password_reset_url, params: {
       token: "invalid",
@@ -51,6 +52,7 @@ class Api::V1::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
       password_confirmation: "the-new-secure-password"
     }, as: :json
     assert_response :unauthorized
+    assert_api_error "INVALID_PASSWORD_RESET_TOKEN"
   end
 
   test "invalid password does not invalidate a valid reset link" do
@@ -63,6 +65,8 @@ class Api::V1::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
       password_confirmation: "different"
     }, as: :json
     assert_response :unprocessable_content
+    assert_api_error "VALIDATION_FAILED"
+    assert response.parsed_body.dig("error", "details").present?
 
     get api_v1_password_reset_url, params: { token: token }, as: :json
     assert_response :success
