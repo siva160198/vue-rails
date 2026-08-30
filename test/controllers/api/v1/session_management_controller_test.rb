@@ -36,7 +36,7 @@ class Api::V1::SessionManagementControllerTest < ActionDispatch::IntegrationTest
   test "user revokes every other session but keeps the current session" do
     2.times { @user.sessions.create! }
 
-    delete others_api_v1_sessions_path, as: :json
+    delete others_api_v1_sessions_path, headers: { "X-Step-Up-Token" => step_up_token_for(@user, "sessions_revoke") }, as: :json
 
     assert_response :success
     assert_equal 2, response.parsed_body.fetch("removed")
@@ -50,5 +50,23 @@ class Api::V1::SessionManagementControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :not_found
     assert Session.exists?(target.id)
+  end
+
+  test "expired session is destroyed and cannot authenticate" do
+    @current_session.update!(last_seen_at: Session.idle_timeout.ago - 1.second)
+
+    get api_v1_session_url, as: :json
+
+    assert_response :unauthorized
+    assert_not Session.exists?(@current_session.id)
+    assert AuditLog.exists?(action: "session.expired", actor: @user)
+  end
+
+  test "session list exposes last activity and absolute expiry" do
+    get api_v1_sessions_url, as: :json
+
+    item = response.parsed_body.fetch("sessions").find { |session| session.fetch("current") }
+    assert item.fetch("last_seen_at")
+    assert item.fetch("expires_at")
   end
 end

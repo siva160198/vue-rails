@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { apiFetch } from "../services/api";
 import { toast } from "../services/toast";
@@ -20,13 +20,7 @@ const state = ref("checking");
 const invalidMessage = ref("");
 const loading = ref(false);
 const resetForm = ref(null);
-const { errorFor, clearError, clearErrors, applyApiError } = useFormErrors();
-const formValid = computed(
-  () =>
-    password.value.length >= 12 &&
-    password.value === passwordConfirmation.value,
-);
-
+const { errorFor, clearError, clearErrors, validate, applyApiError } = useFormErrors();
 onMounted(async () => {
   if (!token) {
     state.value = "invalid";
@@ -46,11 +40,12 @@ onMounted(async () => {
 });
 
 async function resetPassword() {
-  if (loading.value || !formValid.value) return;
-  if (password.value !== passwordConfirmation.value) {
-    toast.warning(t("auth.password_mismatch"));
-    return;
-  }
+  if (loading.value) return;
+  const valid = await validate({
+    password: () => password.value.length < 12 ? t("validation.password_min") : "",
+    password_confirmation: () => !passwordConfirmation.value ? t("validation.required") : password.value !== passwordConfirmation.value ? t("validation.password_mismatch") : "",
+  }, resetForm.value);
+  if (!valid) { toast.warning(t("validation.fix_fields")); return; }
 
   loading.value = true;
   clearErrors();
@@ -66,8 +61,7 @@ async function resetPassword() {
     clearUser();
     await router.push({ path: "/login", query: { reset: "success" } });
   } catch (requestError) {
-    await applyApiError(requestError, resetForm.value);
-    toast.error(requestError.message);
+    await applyApiError(requestError, resetForm.value); toast.error(requestError.message);
   } finally {
     loading.value = false;
   }
@@ -95,6 +89,7 @@ async function resetPassword() {
       <form
         ref="resetForm"
         v-else-if="state === 'valid'"
+        novalidate
         class="mt-8"
         @submit.prevent="resetPassword"
       >
@@ -128,7 +123,6 @@ async function resetPassword() {
         <AsyncButton
           type="submit"
           :loading="loading"
-          :disabled="!formValid"
           :loading-text="t('auth.saving_password')"
           class="mt-6 w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white hover:bg-brand-600"
           >{{ t("auth.save_password") }}</AsyncButton

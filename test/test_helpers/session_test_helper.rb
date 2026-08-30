@@ -12,6 +12,10 @@ module SessionTestHelper
     Current.session&.destroy!
     cookies.delete("session_id")
   end
+
+  def step_up_token_for(user, purpose)
+    StepUpGrant.issue_for!(user, purpose)
+  end
 end
 
 ActiveSupport.on_load(:action_dispatch_integration_test) do

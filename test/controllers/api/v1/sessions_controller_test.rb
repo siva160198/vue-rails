@@ -1,6 +1,13 @@
 require "test_helper"
 
 class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
+  test "reports disabled passkey authentication consistently" do
+    post passkey_options_api_v1_session_url, params: { email_address: users(:one).email_address }, as: :json
+
+    assert_response :unprocessable_content
+    assert_api_error("WEBAUTHN_DISABLED")
+  end
+
   setup do
     ActionMailer::Base.deliveries.clear
   end
@@ -42,6 +49,60 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "repeated failures temporarily lock the account without changing the error early" do
+    user = users(:two)
+    8.times do
+      post api_v1_session_url, params: { email_address: user.email_address, password: "wrong" }, as: :json
+      assert_response :unauthorized
+    end
+
+    assert user.reload.login_locked?
+    post api_v1_session_url, params: { email_address: user.email_address, password: "password" }, as: :json
+    assert_response :too_many_requests
+    assert_api_error("LOGIN_TEMPORARILY_BLOCKED")
+    assert AuditLog.exists?(action: "session.login_blocked", actor: user)
+    assert_equal 1, ActionMailer::Base.deliveries.count { |mail| mail.subject == "Percobaan login mencurigakan pada akun Anda" }
+  end
+
+  test "optional CAPTCHA is required after elevated risk and a verified challenge allows recovery" do
+    user = users(:two)
+    3.times { post api_v1_session_url, params: { email_address: user.email_address, password: "wrong" }, as: :json }
+
+    verifier = Struct.new(:valid) do
+      def enabled? = true
+      def site_key = "test-site-key"
+      def verify(token:, remote_ip:) = valid && token == "verified" && remote_ip.present?
+    end.new(false)
+    Api::V1::SessionsController.captcha_verifier = verifier
+
+    post api_v1_session_url, params: { email_address: user.email_address, password: "password" }, as: :json
+    assert_response :unprocessable_content
+    assert_api_error("CAPTCHA_REQUIRED")
+    assert_equal "test-site-key", response.parsed_body.dig("error", "details", "captcha_site_key")
+
+    verifier.valid = true
+    post api_v1_session_url, params: { email_address: user.email_address, password: "password", captcha_token: "verified" }, as: :json
+    assert_response :accepted
+    assert_equal 0, user.reload.failed_login_attempts
+  ensure
+    Api::V1::SessionsController.captcha_verifier = CaptchaVerifier
+  end
+
+  test "administrator must perform MFA again and cannot reuse trusted-browser bypass" do
+    user = users(:one)
+    challenge, code = LoginChallenge.issue_for!(user)
+    post verify_otp_api_v1_session_url, params: { challenge_token: challenge.token, code: code }, as: :json
+    assert_response :created
+    delete api_v1_session_url, as: :json
+    ActionMailer::Base.deliveries.clear
+
+    post api_v1_session_url, params: { email_address: user.email_address, password: "password" }, as: :json
+
+    assert_response :accepted
+    assert response.parsed_body.fetch("otp_required")
+    assert_equal 1, ActionMailer::Base.deliveries.size
+  end
+
   test "authentication errors follow Accept-Language" do
     post api_v1_session_url,
       params: { email_address: users(:one).email_address, password: "wrong" },
@@ -75,7 +136,7 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "verified OTP is trusted in the same browser for one hour" do
-    user = users(:one)
+    user = users(:two)
     challenge, code = LoginChallenge.issue_for!(user)
 
     post verify_otp_api_v1_session_url,

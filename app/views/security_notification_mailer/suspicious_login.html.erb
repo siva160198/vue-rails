@@ -1,0 +1,5 @@
+<h1><%= t("mailers.security.suspicious_login_title") %></h1>
+<p><%= t("mailers.security.suspicious_login_body") %></p>
+<p><strong>IP:</strong> <%= @ip_address %></p>
+<p><strong><%= t("mailers.login_notification.device") %>:</strong> <%= @user_agent.presence || "—" %></p>
+<p><a href="<%= @security_url %>"><%= t("mailers.security.secure_account") %></a></p>

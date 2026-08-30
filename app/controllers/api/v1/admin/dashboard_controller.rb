@@ -6,7 +6,7 @@ module Api
           authorize :dashboard, :show?
 
           render json: {
-            user: Current.user.as_json(only: %i[id email_address role]).merge(permissions: Current.user.permission_keys),
+            user: Current.user.as_json(only: %i[id email_address role first_name last_name]).merge(permissions: Current.user.permission_keys),
             metrics: {
               users: User.count,
               active_sessions: Session.count

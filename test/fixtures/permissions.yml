@@ -38,6 +38,22 @@ sessions_delete:
   key: sessions.delete
   name: Hapus sesi
 
+account_security_view:
+  key: account_security.view
+  name: Lihat keamanan akun
+
+account_security_update:
+  key: account_security.update
+  name: Ubah keamanan akun
+
+profile_view:
+  key: profile.view
+  name: Lihat profil
+
+profile_update:
+  key: profile.update
+  name: Ubah profil
+
 jobs_view:
   key: jobs.view
   name: Lihat antrean job
@@ -49,3 +65,11 @@ jobs_update:
 api_docs_view:
   key: api_docs.view
   name: Lihat dokumentasi API
+
+security_approvals_view:
+  key: security_approvals.view
+  name: Lihat persetujuan keamanan
+
+security_approvals_update:
+  key: security_approvals.update
+  name: Setujui perubahan keamanan

@@ -21,6 +21,7 @@ gem "rack-cors"
 # Authentication uses Rails' native generator; authorization uses explicit policies.
 gem "bcrypt", "~> 3.1.7"
 gem "pundit"
+gem "webauthn"
 # Optional production exception monitoring; inactive when SENTRY_DSN is blank.
 gem "sentry-rails"
 

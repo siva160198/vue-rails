@@ -22,4 +22,14 @@ describe("FormField", () => {
     expect(result.violations).toEqual([]);
     wrapper.unmount();
   });
+
+  it("does not mark a field invalid for an empty error array", () => {
+    const wrapper = mount(FormField, {
+      props: { label: "Email", error: [] },
+      slots: { default: TextInput },
+    });
+
+    expect(wrapper.get("input").attributes("aria-invalid")).toBe("false");
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false);
+  });
 });

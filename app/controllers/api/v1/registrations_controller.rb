@@ -23,7 +23,7 @@ module Api
       rescue ActiveRecord::RecordInvalid
         render_validation_error(user)
       rescue ActiveRecord::RecordNotUnique
-        render_api_error("EMAIL_ALREADY_REGISTERED", status: :unprocessable_content)
+        render_api_error("EMAIL_ALREADY_REGISTERED", status: :unprocessable_content, details: { email_address: [ I18n.t("api.errors.email_already_registered") ] })
       end
 
       private

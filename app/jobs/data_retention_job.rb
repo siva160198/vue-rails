@@ -4,6 +4,10 @@ class DataRetentionJob < ApplicationJob
   def perform
     Session.where(updated_at: ...session_cutoff).delete_all
     LoginChallenge.where(created_at: ...LoginChallenge::LIFETIME.ago).delete_all
+    StepUpChallenge.where(created_at: ...StepUpChallenge::GRANT_LIFETIME.ago).delete_all
+    StepUpGrant.where(expires_at: ...Time.current).delete_all
+    AdminApproval.where(expires_at: ...Time.current).delete_all
+    LoginAttempt.where(created_at: ...30.days.ago).delete_all
     AuditLog.where(created_at: ...audit_cutoff).in_batches.delete_all
   end
 

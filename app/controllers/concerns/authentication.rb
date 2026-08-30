@@ -27,7 +27,16 @@ module Authentication
 
     def find_session_by_cookie
       session = Session.includes(:user).find_by(id: cookies.signed[:session_id]) if cookies.signed[:session_id]
-      session if session&.user&.active?
+      return unless session
+      if session.expired? || !session.user.active?
+        AuditLog.record!(action: "session.expired", actor: session.user, auditable: session.user, request: request) if session.expired?
+        session.destroy!
+        cookies.delete(:session_id)
+        return
+      end
+
+      session.touch_activity!
+      session
     end
 
     def request_authentication
@@ -43,17 +52,19 @@ module Authentication
       session.delete(:return_to_after_authenticating) || root_url
     end
 
-    def start_new_session_for(user)
+    def start_new_session_for(user, notify: true)
       enforce_session_limit_for(user)
-      user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip).tap do |session|
+      now = Time.current
+      user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip, last_seen_at: now, expires_at: Session.absolute_lifetime_for(user).from_now).tap do |session|
         Current.session = session
         cookies.signed.permanent[:session_id] = {
           value: session.id,
           httponly: true,
           same_site: :lax,
-          secure: Rails.env.production?
+          secure: Rails.env.production?,
+          expires: session.expires_at
         }
-        LoginNotificationMailer.with(user: user, session: session).new_login.deliver_later
+        LoginNotificationMailer.with(user: user, session: session).new_login.deliver_later if notify
       end
     end
 
@@ -64,7 +75,20 @@ module Authentication
     end
 
     def terminate_session
-      Current.session.destroy
+      Current.session&.destroy
       cookies.delete(:session_id)
+    end
+
+    def rotate_current_session!
+      previous = Current.session
+      start_new_session_for(Current.user, notify: false)
+      previous&.destroy!
+      AuditLog.record!(action: "session.rotated", actor: Current.user, auditable: Current.user, request: request)
+      Current.session
+    end
+
+    def invalidate_authentication_trust!
+      Current.user.increment!(:authentication_version)
+      cookies.delete(:otp_trust)
     end
 end

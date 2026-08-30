@@ -34,6 +34,12 @@ default.
 - Authentication helpers are in `app/controllers/concerns/authentication.rb`.
 - Vue application code is under `frontend/src`.
 - Frontend API requests go through `frontend/src/services/api.js`.
+- Global session-expiry handling is registered once from `main.js` through
+  `sessionExpirationCoordinator.js`. Only a `401` carrying the stable
+  `AUTHENTICATION_REQUIRED` code may clear shared auth state, show the localized expiry
+  toast, and redirect to `/login` with the complete current `fullPath` in `redirect`.
+  Never treat login `INVALID_CREDENTIALS` or another arbitrary `401` as an expired
+  session. Deduplicate concurrent expiry responses and reset the cached CSRF token.
 - Every frontend API request carries a generated `X-Request-ID`. Preserve and expose
   it through proxies/CORS, attach the response ID to API errors, and include it in
   monitoring context. Never log passwords, email, OTP, reset tokens, cookies, or bodies.
@@ -58,13 +64,27 @@ default.
   `frontend/src/components/AsyncButton.vue`, expose a contextual loading label,
   and remain disabled until the operation finishes. Use per-row loading state for tables.
 - Edit actions must track their original snapshot and keep save buttons disabled
-  until data changes. Create/submit buttons remain disabled until required input is valid.
+  until data changes. Invalid create/submit actions must run client validation and explain
+  every problem inline instead of remaining silently disabled; only no-change and in-flight
+  actions stay disabled.
   Rails update endpoints must short-circuit no-op writes and must not create audit logs for them.
 - Keep the frontend palette limited to brand blue, neutral gray, and error red.
   Form controls must inherit the shared Tailwind styling in `frontend/src/style.css`;
   do not introduce browser-default checkboxes/selects or new accent color families.
 - Vue routes are defined in `frontend/src/router.js`.
 - The admin shell is `frontend/src/components/admin/AdminLayout.vue`.
+- Header dropdowns (language, notifications, and account) must be mutually lightweight
+  and close on outside click through the shared `useClickOutside` composable.
+- The TailAdmin account dropdown must show the lazy `/profile` link immediately above
+  Sign out and render the current avatar when available. Profile photo upload/removal
+  belongs only on the Profile page, never on Active Devices. Profile is a single TailAdmin-style
+  page without tabs or separate self-service sidebar entries. Editable sections use an Edit
+  button and a lazy TailAdmin modal; table/history sections use View and fetch only when opened.
+  Password, email, recovery-code, and passkey forms each use their own security modal. Avatar
+  selection and stable Change/Remove actions live inside the Personal Information Edit modal;
+  never depend on hover-only avatar actions. The server must autorotate, strip metadata,
+  center-crop, resize, and encode a real AVIF of at most 50 KB (never accept SVG). Profile access requires
+  `profile.view`, mutations require `profile.update`, and both remain ownership-scoped.
 - Rails routes are defined in `config/routes.rb`.
 - `docs/openapi.yml` is the authoritative public API contract. Every endpoint change
   must update paths, operation IDs, security, parameters, request/response schemas,
@@ -179,6 +199,72 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   and password-change events without storing plaintext credentials, OTP/token values, or
   raw attempted email addresses. Password changes revoke all sessions and send a security
   notification asynchronously.
+- Every session must enforce configurable idle and absolute expiry on the server, touch
+  activity at a bounded frequency, expose last activity/expiry in device management,
+  and rotate after password or email changes. Credential changes must also invalidate
+  trusted-browser and outstanding step-up grants through `authentication_version`.
+- Login protection must combine generic per-account temporary lockout with bounded
+  IP-plus-email-digest credential-stuffing detection. Never store raw attempted emails,
+  never reveal account existence through early failure responses, and audit blocked
+  attempts without credentials. Retain login-attempt records only for the bounded
+  operational window.
+- Adaptive lockout must resist account-targeted denial of service: use a bounded
+  progressive delay, combine account state with IP/distinct-digest/device familiarity,
+  and reserve hard lock for repeated high-risk failures. A valid optional CAPTCHA must
+  permit correct credentials to recover from an abusive lock. Suspicious-login email
+  is queued with a per-account cooldown and never includes secrets or raw attempted
+  emails. Trusted login networks come only from validated server-side CIDRs matched
+  against Rails `request.remote_ip`; never trust a client-supplied forwarding header.
+- Optional CAPTCHA uses Cloudflare Turnstile explicit rendering for the Vue SPA and
+  server-side Siteverify on every submitted token. Site and secret keys must be configured
+  together, the secret stays server-only, validation fails closed, tokens are treated as
+  single-use/short-lived, and the widget resets after any attempted submission. The
+  login form remains fully functional without CAPTCHA configuration.
+- Sensitive features should compose `StepUpAuthentication`: current-password challenge,
+  email OTP, single-use challenge, and a short-lived signed purpose-bound grant tied to
+  the user's `authentication_version`. Never accept a grant for another user or purpose.
+  When `ADMIN_MFA_REQUIRED=true`, administrators cannot use trusted-browser OTP bypass;
+  password plus OTP or a verified passkey is required for every new admin session.
+- Step-up grants are database-backed, purpose-bound, authentication-version-bound, and
+  single-use. Password changes, TOTP removal, passkey deletion, mass session revocation,
+  admin user access changes, and role/permission mutations must consume the matching
+  grant. Validate ownership, authorization, and field validity before asking for step-up
+  so invalid or forbidden requests never create misleading verification prompts.
+- When `ADMIN_DUAL_CONTROL_ENABLED=true`, user access and role/permission changes use
+  `AdminDualControl`: store only a canonical payload summary/digest, require approval by a
+  different active administrator, expire requests after 30 minutes, and consume approval
+  for the exact requester/action/payload. The requester must still complete a fresh
+  purpose-bound step-up when retrying the approved mutation. Approval pages require
+  `security_approvals.view/update` and must never allow self-approval.
+- Account MFA supports email OTP, recovery codes, WebAuthn, and RFC 6238 TOTP. Store TOTP
+  secrets encrypted at rest, never return them after enrollment, require a verified code
+  before activation, and prevent roles listed in `MFA_REQUIRED_ROLES` from removing their
+  final enrolled MFA method. Authenticator codes may satisfy an email step-up challenge.
+- Password mutations require at least 12 characters, reject the current password and five
+  recent password digests, optionally use the HIBP k-anonymity range API, revoke sessions,
+  rotate authentication trust, and queue a "not me" security notification. Never send a
+  full password or password hash to an external breach service.
+- Email changes verify the new address and notify the old address with a signed, expiring,
+  single-use reversal link. Reversal restores the old address, increments
+  `authentication_version`, and revokes every session. Passkey additions/removals and TOTP
+  changes also queue security notifications.
+- Encrypt private profile fields such as phone numbers at rest with `SecurityEncryptor`.
+  Preserve legacy plaintext reads during migrations, never expose ciphertext through API
+  serializers, and allocate database columns for ciphertext expansion.
+- `AuditLog` is append-only through Active Record, HMAC-chained, and emits a minimal
+  structured `security_audit` event suitable for an external immutable log sink. Never log
+  credentials or security tokens. Retention deletion may use bounded SQL cleanup, and chain
+  backfills must accompany digest format changes.
+- Uploads are quarantined in request temp storage until decoding, dimension checks,
+  metadata stripping, conversion, and optional fail-closed ClamAV scanning complete.
+  Keep malware scanning disabled unless its scanner is installed and production-validated.
+- Production responses keep HSTS, CSP reporting, COOP, CORP, referrer, permissions, and
+  nosniff headers enabled. CSP browser reports are the only mutation exempt from CSRF because
+  the browser sends them outside the application fetch flow; sanitize their logged fields.
+- CI security gates include Brakeman, Bundler Audit, npm audit, secret scanning, CodeQL,
+  a HIGH/CRITICAL container scan, CycloneDX SBOM generation, OWASP ZAP OpenAPI scanning,
+  and an isolated backup restore. Pin every third-party GitHub Action to a reviewed commit
+  SHA and let Dependabot propose controlled updates for Actions, Bundler, and npm.
 - Swagger UI is an admin-only lazy-loaded viewer for the committed `docs/openapi.yml`;
   access requires `api_docs.view`. It never replaces contract tests or permits production
   credentials to be persisted in browser storage.
@@ -239,7 +325,8 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   specialized reusable internals such as DataTable search and permission checkboxes.
 - Forms that call the API must use `useFormErrors()` to map the standardized
   `error.details` payload to matching field names, clear a field's error when it changes,
-  retain the global error toast, and focus the first invalid control. Every Rails
+  supplement field feedback with a global summary toast, and focus the first invalid control.
+  Toast alone is never sufficient for a field-specific error. Every Rails
   validation field returned to Vue must match the form control's `name`. FormField and
   its shared controls must preserve label, help, error, `aria-describedby`, and
   `aria-invalid` associations; do not implement page-local validation-error markup.
@@ -347,6 +434,18 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   `sessions.view`, revocation requires `sessions.delete`, the current session is visibly
   marked, and security actions create audit logs. Every successful new session queues a
   bilingual login-notification email containing time, IP, and user-agent but no secrets.
+- Account-security mutations require `account_security.update` and remain ownership
+  scoped. Changing a password requires the current password, rejects no-op reuse,
+  revokes other sessions, audits the event, and queues a security email. Changing email
+  requires the current password plus an OTP sent to the new address, marks it verified
+  only after OTP success, revokes other sessions, and notifies the previous address.
+  Recovery-code regeneration requires current-password confirmation followed by a
+  separate email OTP and shows generated codes only once.
+- WebAuthn/passkeys are optional and use the maintained `webauthn` gem plus browser-native
+  WebAuthn JSON methods; never implement cryptography manually. Enable only when both
+  `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGIN` are set, require user verification, persist and
+  update signature counters, use short-lived signed ceremony challenges, and preserve
+  password/email-OTP fallback. Account security is an inline TailAdmin page, not a modal.
 
 ## Verification
 

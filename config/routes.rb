@@ -6,17 +6,36 @@ Rails.application.routes.draw do
       get "status", to: "status#show"
       get "readiness", to: "readiness#show"
       get "csrf", to: "csrf#show"
+      post "csp_reports", to: "csp_reports#create"
       resource :password_reset, only: %i[show create update]
       resource :registration, only: :create
+      resource :email_revert, only: :create
       resource :session, only: %i[show create destroy] do
         post :verify_otp
         post :resend_otp
+        post :passkey_options
+        post :passkey
       end
       resources :sessions, only: %i[index destroy], controller: :devices do
         delete :others, on: :collection, action: :destroy_others
       end
-      resource :profile, only: %i[update destroy] do
-        post :recovery_codes
+      resource :profile, only: %i[show update destroy] do
+      end
+      resource :account_security, only: :show, controller: :account_security do
+        patch :password
+        post :request_email
+        post :verify_email
+        post :request_recovery_codes
+        post :verify_recovery_codes
+        post :request_totp
+        post :verify_totp
+        delete :disable_totp
+      end
+      resources :passkeys, only: %i[create destroy] do
+        post :options, on: :collection
+      end
+      resource :step_up, only: :create do
+        post :verify
       end
 
       namespace :admin do
@@ -24,6 +43,7 @@ Rails.application.routes.draw do
         resources :users, only: %i[index show update]
         resources :roles, only: %i[index show create update destroy]
         resources :audit_logs, only: :index
+        resources :approvals, only: %i[index update]
         resources :jobs, only: %i[index destroy] do
           post :retry, on: :member
         end

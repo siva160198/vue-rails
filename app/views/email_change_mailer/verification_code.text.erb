@@ -1,0 +1,6 @@
+<%= t("mailers.email_change.title") %>
+
+<%= t("mailers.email_change.intro") %>
+<%= @code %>
+
+<%= t("mailers.email_change.expiry", minutes: @expires_in) %>

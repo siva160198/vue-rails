@@ -1,5 +1,7 @@
 class ApplicationController < ActionController::Base
   include Authentication
+  include StepUpAuthentication
+  include AdminDualControl
   include ApiPagination
   include Pundit::Authorization
   around_action :switch_locale

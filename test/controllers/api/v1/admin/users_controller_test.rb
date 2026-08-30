@@ -58,7 +58,7 @@ class Api::V1::Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     target = users(:two)
 
     assert_difference("AuditLog.count", 1) do
-      patch api_v1_admin_user_url(target), params: { role: "admin", active: false }, as: :json
+      patch api_v1_admin_user_url(target), params: { role: "admin", active: false }, headers: { "X-Step-Up-Token" => step_up_token_for(users(:one), "admin_user_update") }, as: :json
     end
 
     assert_response :success
@@ -80,6 +80,16 @@ class Api::V1::Admin::UsersControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert response.parsed_body["unchanged"]
+  end
+
+  test "invalid role error uses the role form field key" do
+    sign_in_as users(:one)
+
+    patch api_v1_admin_user_url(users(:two)), params: { role: "missing_role" }, as: :json
+
+    assert_response :unprocessable_content
+    assert_equal [ "tidak tersedia" ], response.parsed_body.dig("error", "details", "role")
+    assert_nil response.parsed_body.dig("error", "details", "role_record")
   end
 
   test "admin cannot update their own access" do

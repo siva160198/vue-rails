@@ -17,6 +17,7 @@ import TextInput from "../components/TextInput.vue";
 import TextareaInput from "../components/TextareaInput.vue";
 import TableActionButton from "../components/TableActionButton.vue";
 import { useFormErrors } from "../services/formErrors";
+import StepUpPrompt from "../components/security/StepUpPrompt.vue";
 
 const permissions = ref([]);
 const creating = ref(false);
@@ -29,6 +30,7 @@ const createFormElement = ref(null);
 const editFormElement = ref(null);
 const createErrors = useFormErrors();
 const editErrors = useFormErrors();
+const pendingSecurityAction = ref(null);
 let modalRequestSequence = 0;
 const { can, canAny } = useAuth();
 const {
@@ -64,9 +66,6 @@ const hasEditChanges = computed(
   () =>
     editingRole.value &&
     hasChanges(roleState(editingRole.value), editSnapshot.value),
-);
-const canSubmitCreate = computed(
-  () => form.name.trim().length > 0 && /^[a-z0-9_]+$/.test(form.key),
 );
 const columns = computed(() => [
   { key: "name", label: t("roles.name") },
@@ -121,13 +120,19 @@ function closeEditModal() {
   editErrors.clearErrors();
 }
 
-async function createRole() {
-  if (creating.value || !canCreateRole() || !canSubmitCreate.value) return;
+async function createRole(stepUpToken = "") {
+  if (creating.value || !canCreateRole()) return;
+  const valid = await createErrors.validate({
+    name: () => form.name.trim() ? "" : t("validation.required"),
+    key: () => !form.key ? t("validation.required") : !/^[a-z0-9_]+$/.test(form.key) ? t("validation.role_key") : "",
+  }, createFormElement.value);
+  if (!valid) { toast.warning(t("validation.fix_fields")); return; }
   creating.value = true;
   createErrors.clearErrors();
   try {
     await apiFetch("/api/v1/admin/roles", {
       method: "POST",
+      headers: stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {},
       body: JSON.stringify(form),
     });
     Object.assign(form, {
@@ -139,6 +144,7 @@ async function createRole() {
     toast.success(t("roles.created"));
     await loadRoles();
   } catch (requestError) {
+    if (requestError.code === "STEP_UP_REQUIRED") { pendingSecurityAction.value = { type: "create" }; return; }
     await createErrors.applyApiError(requestError, createFormElement.value);
     toast.error(requestError.message);
   } finally {
@@ -146,13 +152,16 @@ async function createRole() {
   }
 }
 
-async function saveRole(role) {
+async function saveRole(role, stepUpToken = "") {
   if (savingRoleIds.value.has(role.id) || !hasEditChanges.value) return;
+  const valid = await editErrors.validate({ name: () => role.name.trim() ? "" : t("validation.required") }, editFormElement.value);
+  if (!valid) { toast.warning(t("validation.fix_fields")); return; }
   savingRoleIds.value = new Set(savingRoleIds.value).add(role.id);
   editErrors.clearErrors();
   try {
     const response = await apiFetch(`/api/v1/admin/roles/${role.id}`, {
       method: "PATCH",
+      headers: stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {},
       body: JSON.stringify({
         name: role.name,
         description: role.description,
@@ -164,6 +173,7 @@ async function saveRole(role) {
     editingRole.value = null;
     editSnapshot.value = null;
   } catch (requestError) {
+    if (requestError.code === "STEP_UP_REQUIRED") { pendingSecurityAction.value = { type: "update", role }; return; }
     await editErrors.applyApiError(requestError, editFormElement.value);
     toast.error(requestError.message);
   } finally {
@@ -173,9 +183,9 @@ async function saveRole(role) {
   }
 }
 
-async function deleteRole(role) {
+async function deleteRole(role, stepUpToken = "", confirmed = false) {
   if (deletingRoleIds.value.has(role.id)) return;
-  if (
+  if (!confirmed &&
     !(await confirmToast(t("roles.confirm_delete", { name: role.name }), {
       confirmLabel: t("common.delete"),
     }))
@@ -183,16 +193,23 @@ async function deleteRole(role) {
     return;
   deletingRoleIds.value = new Set(deletingRoleIds.value).add(role.id);
   try {
-    await apiFetch(`/api/v1/admin/roles/${role.id}`, { method: "DELETE" });
+    await apiFetch(`/api/v1/admin/roles/${role.id}`, { method: "DELETE", headers: stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {} });
     removeRole(role.id);
     toast.success(t("roles.deleted", { name: role.name }));
   } catch (requestError) {
+    if (requestError.code === "STEP_UP_REQUIRED") { pendingSecurityAction.value = { type: "delete", role }; return; }
     toast.error(requestError.message);
   } finally {
     const nextIds = new Set(deletingRoleIds.value);
     nextIds.delete(role.id);
     deletingRoleIds.value = nextIds;
   }
+}
+async function finishSecurityAction(token) {
+  const pending = pendingSecurityAction.value; pendingSecurityAction.value = null;
+  if (pending.type === "create") await createRole(token);
+  if (pending.type === "update") await saveRole(pending.role, token);
+  if (pending.type === "delete") await deleteRole(pending.role, token, true);
 }
 </script>
 
@@ -209,6 +226,7 @@ async function deleteRole(role) {
       <form
         ref="createFormElement"
         v-if="canCreateRole()"
+        novalidate
         class="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-white/[0.03] md:grid-cols-2"
         @submit.prevent="createRole"
       >
@@ -262,7 +280,7 @@ async function deleteRole(role) {
           <AsyncButton
             type="submit"
             :loading="creating"
-            :disabled="!canSubmitCreate"
+            :disabled="creating"
             :loading-text="t('roles.adding')"
             class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600"
             >{{ t("roles.add") }}</AsyncButton
@@ -352,6 +370,7 @@ async function deleteRole(role) {
         v-if="editingRole"
         ref="editFormElement"
         id="edit-role-form"
+        novalidate
         class="space-y-5"
         @submit.prevent="saveRole(editingRole)"
       >
@@ -400,7 +419,7 @@ async function deleteRole(role) {
               form="edit-role-form"
               type="submit"
               :loading="savingRoleIds.has(editingRole.id)"
-              :disabled="!editingRole.name.trim() || !hasEditChanges"
+              :disabled="!hasEditChanges"
               :loading-text="t('common.saving')"
               class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600"
             >
@@ -408,5 +427,6 @@ async function deleteRole(role) {
             </AsyncButton>
       </template>
     </AppModal>
+    <AppModal :open="Boolean(pendingSecurityAction)" :title="t('security.additional_verification')" size="md" @close="pendingSecurityAction = null"><StepUpPrompt v-if="pendingSecurityAction" purpose="admin_role_change" @verified="finishSecurityAction" @cancel="pendingSecurityAction = null" /></AppModal>
   </AdminLayout>
 </template>

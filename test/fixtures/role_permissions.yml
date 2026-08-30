@@ -28,6 +28,18 @@ admin_sessions_view:
 admin_sessions_delete:
   role: admin
   permission: sessions_delete
+admin_account_security_view:
+  role: admin
+  permission: account_security_view
+admin_account_security_update:
+  role: admin
+  permission: account_security_update
+admin_profile_view:
+  role: admin
+  permission: profile_view
+admin_profile_update:
+  role: admin
+  permission: profile_update
 admin_jobs_view:
   role: admin
   permission: jobs_view
@@ -37,9 +49,27 @@ admin_jobs_update:
 admin_api_docs_view:
   role: admin
   permission: api_docs_view
+admin_security_approvals_view:
+  role: admin
+  permission: security_approvals_view
+admin_security_approvals_update:
+  role: admin
+  permission: security_approvals_update
 member_sessions_view:
   role: member
   permission: sessions_view
 member_sessions_delete:
   role: member
   permission: sessions_delete
+member_account_security_view:
+  role: member
+  permission: account_security_view
+member_account_security_update:
+  role: member
+  permission: account_security_update
+member_profile_view:
+  role: member
+  permission: profile_view
+member_profile_update:
+  role: member
+  permission: profile_update

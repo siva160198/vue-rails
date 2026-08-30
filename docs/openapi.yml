@@ -40,6 +40,14 @@ paths:
       description: Returns the token required in `X-CSRF-Token` for state-changing requests.
       responses:
         "200": { description: CSRF token, content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string } } } } } }
+  /api/v1/csp_reports:
+    post:
+      tags: [System]
+      security: []
+      operationId: reportCspViolation
+      description: Browser CSP reporting endpoint. It accepts sanitized violation reports and never returns report data.
+      requestBody: { required: true, content: { application/csp-report: { schema: { type: object, additionalProperties: true } }, application/reports+json: { schema: { type: array, items: { type: object, additionalProperties: true } } } } }
+      responses: { "204": { description: Report accepted }, "429": { description: Report rate limited } }
   /api/v1/registration:
     post:
       tags: [Authentication]
@@ -52,6 +60,14 @@ paths:
         "202": { description: Existing unverified account; OTP required, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
         "422": { $ref: "#/components/responses/ApiError" }
         "429": { $ref: "#/components/responses/ApiError" }
+  /api/v1/email_revert:
+    post:
+      tags: [Authentication]
+      security: []
+      operationId: revertEmailChange
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [token], properties: { token: { type: string } } } } } }
+      responses: { "200": { description: Previous email restored and sessions revoked, content: { application/json: { schema: { type: object, required: [reverted], properties: { reverted: { const: true } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
   /api/v1/session:
     get:
       tags: [Authentication]
@@ -100,6 +116,22 @@ paths:
         "202": { description: Replacement OTP challenge, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
         "401": { $ref: "#/components/responses/ApiError" }
         "429": { $ref: "#/components/responses/ApiError" }
+  /api/v1/session/passkey_options:
+    post:
+      tags: [Authentication]
+      security: []
+      operationId: getPasskeyAuthenticationOptions
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [email_address], properties: { email_address: { type: string, format: email } } } } } }
+      responses: { "200": { description: WebAuthn authentication options, content: { application/json: { schema: { $ref: "#/components/schemas/PasskeyOptionsResponse" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/session/passkey:
+    post:
+      tags: [Authentication]
+      security: []
+      operationId: loginWithPasskey
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PasskeyCeremonyRequest" } } } }
+      responses: { "201": { description: Authenticated session created, content: { application/json: { schema: { type: object, required: [user], properties: { user: { $ref: "#/components/schemas/AuthenticatedUser" } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
   /api/v1/password_reset:
     get:
       tags: [Authentication]
@@ -141,7 +173,7 @@ paths:
     delete:
       tags: [Account]
       operationId: revokeOtherSessions
-      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
       responses:
         "200": { description: Other sessions revoked, content: { application/json: { schema: { type: object, required: [removed], properties: { removed: { type: integer, minimum: 0 } } } } } }
         "401": { $ref: "#/components/responses/ApiError" }
@@ -155,24 +187,121 @@ paths:
         "200": { description: Session revoked, content: { application/json: { schema: { type: object, required: [current_session], properties: { current_session: { type: boolean } } } } } }
         "404": { $ref: "#/components/responses/ApiError" }
   /api/v1/profile:
+    get:
+      tags: [Account]
+      operationId: getOwnProfile
+      responses: { "200": { description: Current account profile, content: { application/json: { schema: { type: object, required: [profile], properties: { profile: { $ref: "#/components/schemas/Profile" } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "403": { $ref: "#/components/responses/ApiError" } }
     patch:
       tags: [Account]
-      operationId: updateProfileAvatar
+      operationId: updateOwnProfile
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
-      requestBody: { required: true, content: { multipart/form-data: { schema: { type: object, required: [avatar], properties: { avatar: { type: string, format: binary } } } } } }
-      responses: { "200": { description: Avatar updated, content: { application/json: { schema: { type: object, required: [avatar_url], properties: { avatar_url: { type: string } } } } } }, "422": { $ref: "#/components/responses/ApiError" } }
+      description: Updates personal information with JSON, or converts an uploaded raster image to a stripped square AVIF no larger than 50 KB. SVG is not accepted; source files are limited to 10 MB and 25 megapixels.
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/ProfileUpdateRequest" } }
+          multipart/form-data: { schema: { type: object, required: [avatar], properties: { avatar: { type: string, format: binary } } } }
+      responses: { "200": { description: Profile information or avatar updated, content: { application/json: { schema: { oneOf: [{ $ref: "#/components/schemas/ProfileMutationResponse" }, { $ref: "#/components/schemas/AvatarMutationResponse" }] } } } }, "422": { $ref: "#/components/responses/ApiError" } }
     delete:
       tags: [Account]
       operationId: deleteProfileAvatar
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
       responses: { "204": { description: Avatar removed } }
-  /api/v1/profile/recovery_codes:
+  /api/v1/account_security:
+    get:
+      tags: [Account]
+      operationId: getAccountSecurity
+      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }]
+      responses: { "200": { description: Own security history and passkeys, content: { application/json: { schema: { $ref: "#/components/schemas/AccountSecurityResponse" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "403": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/password:
+    patch:
+      tags: [Account]
+      operationId: changeOwnPassword
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/PasswordChangeRequest" } } } }
+      responses: { "200": { description: Password changed and other sessions revoked, content: { application/json: { schema: { type: object, required: [user], properties: { user: { $ref: "#/components/schemas/AuthenticatedUser" } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/request_email:
     post:
       tags: [Account]
-      operationId: regenerateRecoveryCodes
+      operationId: requestOwnEmailChange
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [password], properties: { password: { type: string, format: password } } } } } }
-      responses: { "200": { description: Recovery codes shown once, content: { application/json: { schema: { type: object, required: [recovery_codes], properties: { recovery_codes: { type: array, minItems: 8, maxItems: 8, items: { type: string, pattern: "^[a-f0-9]{10}$" } } } } } } }, "401": { $ref: "#/components/responses/ApiError" } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [current_password, email_address], properties: { current_password: { type: string, format: password }, email_address: { type: string, format: email } } } } } }
+      responses: { "202": { description: Verification sent to new address, content: { application/json: { schema: { $ref: "#/components/schemas/SecurityChallenge" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/verify_email:
+    post:
+      tags: [Account]
+      operationId: verifyOwnEmailChange
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/SecurityChallengeVerification" } } } }
+      responses: { "200": { description: Email changed and verified, content: { application/json: { schema: { type: object, required: [user], properties: { user: { $ref: "#/components/schemas/AuthenticatedUser" } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/request_recovery_codes:
+    post:
+      tags: [Account]
+      operationId: requestRecoveryCodeRegeneration
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [current_password], properties: { current_password: { type: string, format: password } } } } } }
+      responses: { "202": { description: Additional OTP confirmation sent, content: { application/json: { schema: { $ref: "#/components/schemas/SecurityChallenge" } } } }, "401": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/verify_recovery_codes:
+    post:
+      tags: [Account]
+      operationId: verifyRecoveryCodeRegeneration
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/SecurityChallengeVerification" } } } }
+      responses: { "200": { description: Recovery codes shown once, content: { application/json: { schema: { type: object, required: [recovery_codes], properties: { recovery_codes: { type: array, minItems: 8, maxItems: 8, items: { type: string, pattern: "^[a-f0-9]{10}$" } } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/request_totp:
+    post:
+      tags: [Account]
+      operationId: requestTotpEnrollment
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [current_password], properties: { current_password: { type: string, format: password } } } } } }
+      responses: { "200": { description: TOTP enrollment secret, content: { application/json: { schema: { type: object, required: [secret, provisioning_uri], properties: { secret: { type: string }, provisioning_uri: { type: string } } } } } }, "401": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/verify_totp:
+    post:
+      tags: [Account]
+      operationId: verifyTotpEnrollment
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string, pattern: "^[0-9]{6}$" } } } } } }
+      responses: { "200": { description: TOTP enabled, content: { application/json: { schema: { type: object, required: [totp_enabled], properties: { totp_enabled: { const: true } } } } } }, "401": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/account_security/disable_totp:
+    delete:
+      tags: [Account]
+      operationId: disableTotp
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
+      responses: { "200": { description: TOTP disabled, content: { application/json: { schema: { type: object, required: [totp_enabled], properties: { totp_enabled: { const: false } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/passkeys/options:
+    post:
+      tags: [Account]
+      operationId: getPasskeyRegistrationOptions
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [current_password], properties: { current_password: { type: string, format: password } } } } } }
+      responses: { "200": { description: WebAuthn registration options, content: { application/json: { schema: { $ref: "#/components/schemas/PasskeyOptionsResponse" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/passkeys:
+    post:
+      tags: [Account]
+      operationId: createPasskey
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/PasskeyCeremonyRequest" }, { type: object, required: [nickname], properties: { nickname: { type: string, maxLength: 50 } } }] } } } }
+      responses: { "201": { description: Passkey registered, content: { application/json: { schema: { type: object, required: [passkey], properties: { passkey: { $ref: "#/components/schemas/Passkey" } } } } } }, "422": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/passkeys/{id}:
+    delete:
+      tags: [Account]
+      operationId: deletePasskey
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
+      responses: { "204": { description: Passkey removed }, "404": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/step_up:
+    post:
+      tags: [Account]
+      operationId: requestStepUpVerification
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [purpose, current_password], properties: { purpose: { type: string, enum: [account_security] }, current_password: { type: string, format: password } } } } } }
+      responses: { "202": { description: Additional OTP challenge issued, content: { application/json: { schema: { $ref: "#/components/schemas/SecurityChallenge" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/step_up/verify:
+    post:
+      tags: [Account]
+      operationId: verifyStepUp
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/SecurityChallengeVerification" }, { type: object, required: [purpose], properties: { purpose: { type: string, enum: [account_security] } } }] } } } }
+      responses: { "200": { description: Short-lived step-up grant, content: { application/json: { schema: { type: object, required: [step_up_token, expires_in], properties: { step_up_token: { type: string }, expires_in: { type: integer, minimum: 1 } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/dashboard:
     get: { tags: [Admin], operationId: getAdminDashboard, responses: { "200": { description: Dashboard metrics, content: { application/json: { schema: { $ref: "#/components/schemas/DashboardResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" } } }
   /api/v1/admin/users:
@@ -188,7 +317,7 @@ paths:
     patch:
       tags: [Admin]
       operationId: updateUser
-      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }]
+      parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { role: { type: string }, active: { type: boolean } } } } } }
       responses: { "200": { description: Updated user, content: { application/json: { schema: { $ref: "#/components/schemas/UserMutationResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/roles:
@@ -196,15 +325,27 @@ paths:
     post:
       tags: [Admin]
       operationId: createRole
-      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/RoleWriteRequest" } } } }
       responses: { "201": { description: Created role, content: { application/json: { schema: { $ref: "#/components/schemas/RoleResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/roles/{id}:
     get: { tags: [Admin], operationId: getRole, parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: Role detail and permissions, content: { application/json: { schema: { $ref: "#/components/schemas/RoleDetailResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "404": { $ref: "#/components/responses/ApiError" } } }
-    patch: { tags: [Admin], operationId: updateRole, parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }], requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/RoleWriteRequest" } } } }, responses: { "200": { description: Updated role, content: { application/json: { schema: { $ref: "#/components/schemas/RoleResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } } }
-    delete: { tags: [Admin], operationId: deleteRole, parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }], responses: { "204": { description: Role deleted }, "403": { $ref: "#/components/responses/ApiError" } } }
+    patch: { tags: [Admin], operationId: updateRole, parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }], requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/RoleWriteRequest" } } } }, responses: { "200": { description: Updated role, content: { application/json: { schema: { $ref: "#/components/schemas/RoleResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } } }
+    delete: { tags: [Admin], operationId: deleteRole, parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }], responses: { "204": { description: Role deleted }, "403": { $ref: "#/components/responses/ApiError" } } }
   /api/v1/admin/audit_logs:
     get: { tags: [Admin], operationId: listAuditLogs, parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }], responses: { "200": { description: Paginated audit logs, content: { application/json: { schema: { $ref: "#/components/schemas/AuditLogListResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" } } }
+  /api/v1/admin/approvals:
+    get:
+      tags: [Admin]
+      operationId: listSecurityApprovals
+      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }]
+      responses: { "200": { description: Pending four-eyes approvals, content: { application/json: { schema: { type: object, required: [approvals, pagination], properties: { approvals: { type: array, items: { $ref: "#/components/schemas/AdminApproval" } }, pagination: { $ref: "#/components/schemas/Pagination" } } } } } }, "403": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/admin/approvals/{id}:
+    patch:
+      tags: [Admin]
+      operationId: approveSecurityChange
+      parameters: [{ $ref: "#/components/parameters/Uuid" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
+      responses: { "200": { description: Approval granted by a second administrator, content: { application/json: { schema: { type: object, required: [approval], properties: { approval: { $ref: "#/components/schemas/AdminApproval" } } } } } }, "403": { $ref: "#/components/responses/ApiError" }, "404": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/jobs:
     get:
       tags: [Admin]
@@ -229,7 +370,9 @@ components:
       description: Signed HTTP-only SameSite=Lax cookie created after successful OTP verification.
   parameters:
     CsrfToken: { in: header, name: X-CSRF-Token, required: true, schema: { type: string } }
+    StepUpToken: { in: header, name: X-Step-Up-Token, required: true, schema: { type: string }, description: Short-lived purpose-bound token returned by step-up verification. }
     Id: { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
+    Uuid: { in: path, name: id, required: true, schema: { type: string, format: uuid } }
     Page: { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
     PerPage: { in: query, name: per_page, schema: { type: integer, minimum: 5, maximum: 50, default: 10 } }
     Search: { in: query, name: search, schema: { type: string, maxLength: 100 } }
@@ -272,7 +415,7 @@ components:
     LoginRequest:
       type: object
       required: [email_address, password]
-      properties: { email_address: { type: string, format: email }, password: { type: string, format: password } }
+      properties: { email_address: { type: string, format: email }, password: { type: string, format: password }, captcha_token: { type: string, maxLength: 2048, description: Required only when a previous risk response returns CAPTCHA_REQUIRED. } }
     RegistrationRequest:
       allOf:
         - { $ref: "#/components/schemas/LoginRequest" }
@@ -295,10 +438,58 @@ components:
       type: object
       required: [token, password, password_confirmation]
       properties: { token: { type: string }, password: { type: string, format: password, minLength: 12 }, password_confirmation: { type: string, format: password, minLength: 12 } }
+    PasswordChangeRequest:
+      type: object
+      required: [password, password_confirmation]
+      properties: { password: { type: string, format: password, minLength: 12 }, password_confirmation: { type: string, format: password, minLength: 12 } }
+    SecurityChallenge:
+      type: object
+      required: [challenge_token, email_hint, expires_in]
+      properties: { challenge_token: { type: string }, email_hint: { type: string }, expires_in: { type: integer, minimum: 1 } }
+    SecurityChallengeVerification:
+      type: object
+      required: [challenge_token, code]
+      properties: { challenge_token: { type: string }, code: { type: string, pattern: "^[0-9]{6}$" } }
+    PasskeyCeremonyRequest:
+      type: object
+      required: [challenge_token, credential]
+      properties: { challenge_token: { type: string }, credential: { type: object, additionalProperties: true } }
+    PasskeyOptionsResponse:
+      type: object
+      required: [options, challenge_token]
+      properties: { options: { type: object, additionalProperties: true }, challenge_token: { type: string } }
+    Passkey:
+      type: object
+      required: [id, nickname, created_at]
+      properties: { id: { type: integer }, nickname: { type: string }, transports: { type: array, items: { type: string, enum: [usb, nfc, ble, internal, hybrid] } }, authenticator_attachment: { type: [string, "null"], enum: [platform, cross-platform, null] }, last_used_at: { type: [string, "null"], format: date-time }, created_at: { type: string, format: date-time } }
+    SecurityEvent:
+      type: object
+      required: [id, action, created_at]
+      properties: { id: { type: integer }, action: { type: string }, ip_address: { type: [string, "null"] }, user_agent: { type: [string, "null"] }, created_at: { type: string, format: date-time } }
+    AccountSecurityResponse:
+      type: object
+      required: [events, passkeys, passkeys_enabled, totp_enabled, recovery_code_count, pagination]
+      properties: { events: { type: array, items: { $ref: "#/components/schemas/SecurityEvent" } }, passkeys: { type: array, items: { $ref: "#/components/schemas/Passkey" } }, passkeys_enabled: { type: boolean }, totp_enabled: { type: boolean }, recovery_code_count: { type: integer, minimum: 0 }, pagination: { $ref: "#/components/schemas/Pagination" } }
     AuthenticatedUser:
       type: object
       required: [id, email_address, role, permissions]
-      properties: { id: { type: integer }, email_address: { type: string, format: email }, role: { type: string }, permissions: { type: array, items: { type: string } }, avatar_url: { type: [string, "null"] } }
+      properties: { id: { type: integer }, email_address: { type: string, format: email }, first_name: { type: [string, "null"] }, last_name: { type: [string, "null"] }, role: { type: string }, permissions: { type: array, items: { type: string } }, avatar_url: { type: [string, "null"] } }
+    Profile:
+      type: object
+      required: [id, email_address, role, active, created_at]
+      properties: { id: { type: integer }, email_address: { type: string, format: email }, first_name: { type: [string, "null"], maxLength: 80 }, last_name: { type: [string, "null"], maxLength: 80 }, phone: { type: [string, "null"], maxLength: 30 }, role: { type: string }, active: { type: boolean }, email_verified_at: { type: [string, "null"], format: date-time }, avatar_url: { type: [string, "null"] }, created_at: { type: string, format: date-time } }
+    ProfileUpdateRequest:
+      type: object
+      minProperties: 1
+      properties: { first_name: { type: [string, "null"], maxLength: 80 }, last_name: { type: [string, "null"], maxLength: 80 }, phone: { type: [string, "null"], maxLength: 30, pattern: "^[+0-9() .-]*$" } }
+    ProfileMutationResponse:
+      type: object
+      required: [profile, unchanged]
+      properties: { profile: { $ref: "#/components/schemas/Profile" }, unchanged: { type: boolean } }
+    AvatarMutationResponse:
+      type: object
+      required: [avatar_url, byte_size, content_type]
+      properties: { avatar_url: { type: string }, byte_size: { type: integer, maximum: 51200 }, content_type: { const: image/avif } }
     User:
       type: object
       required: [id, email_address, role, active, created_at]
@@ -310,8 +501,8 @@ components:
       properties: { key: { type: string, pattern: "^[a-z0-9_]+$" }, name: { type: string }, description: { type: string }, permission_keys: { type: array, uniqueItems: true, items: { type: string } } }
     SessionDevice:
       type: object
-      required: [id, current, created_at, updated_at]
-      properties: { id: { type: integer }, ip_address: { type: [string, "null"] }, user_agent: { type: [string, "null"] }, current: { type: boolean }, created_at: { type: string, format: date-time }, updated_at: { type: string, format: date-time } }
+      required: [id, current, created_at, last_seen_at, expires_at]
+      properties: { id: { type: integer }, ip_address: { type: [string, "null"] }, user_agent: { type: [string, "null"] }, current: { type: boolean }, created_at: { type: string, format: date-time }, last_seen_at: { type: string, format: date-time }, expires_at: { type: string, format: date-time } }
     DashboardResponse:
       type: object
       required: [user, metrics]
@@ -342,6 +533,10 @@ components:
       type: object
       required: [roles, permissions, pagination]
       properties: { roles: { type: array, items: { $ref: "#/components/schemas/Role" } }, permissions: { type: array, items: { $ref: "#/components/schemas/Permission" } }, pagination: { $ref: "#/components/schemas/Pagination" } }
+    AdminApproval:
+      type: object
+      required: [id, action_key, payload_summary, requester_email, created_at, expires_at]
+      properties: { id: { type: string, format: uuid }, action_key: { type: string }, payload_summary: { type: object, additionalProperties: true }, requester_email: { type: string, format: email }, created_at: { type: string, format: date-time }, expires_at: { type: string, format: date-time }, approved_at: { type: [string, "null"], format: date-time } }
     AuditLog:
       type: object
       required: [id, action, metadata, created_at]

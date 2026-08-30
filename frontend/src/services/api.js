@@ -1,4 +1,5 @@
 import { locale, t } from './i18n'
+import { notifyAuthenticationRequired } from './sessionExpiration'
 
 let csrfToken
 
@@ -35,6 +36,10 @@ export async function apiFetch(path, options = {}) {
     error.code = typeof apiError === 'object' ? apiError.code : undefined
     error.details = typeof apiError === 'object' ? apiError.details || {} : data?.errors || {}
     error.requestId = response.headers.get('X-Request-ID') || requestId
+    if (error.status === 401 && error.code === 'AUTHENTICATION_REQUIRED') {
+      csrfToken = undefined
+      notifyAuthenticationRequired(error)
+    }
     throw error
   }
   return data

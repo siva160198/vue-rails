@@ -64,6 +64,21 @@ describe('apiFetch', () => {
     })
   })
 
+  it('notifies the global session handler only for authentication-required 401 responses', async () => {
+    const handler = vi.fn()
+    vi.stubGlobal('fetch', vi.fn()
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'AUTHENTICATION_REQUIRED', message: 'Expired', details: {} } }), { status: 401, headers: { 'Content-Type': 'application/json' } }))
+      .mockResolvedValueOnce(new Response(JSON.stringify({ error: { code: 'INVALID_CREDENTIALS', message: 'Wrong', details: {} } }), { status: 401, headers: { 'Content-Type': 'application/json' } })))
+    const { registerAuthenticationRequiredHandler } = await import('./sessionExpiration')
+    const { apiFetch } = await import('./api')
+    registerAuthenticationRequiredHandler(handler)
+
+    await expect(apiFetch('/api/v1/protected')).rejects.toMatchObject({ code: 'AUTHENTICATION_REQUIRED' })
+    await expect(apiFetch('/api/v1/fake-login')).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' })
+
+    expect(handler).toHaveBeenCalledOnce()
+  })
+
   it('keeps compatibility with legacy string errors', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(JSON.stringify({ error: 'Ditolak' }), {
       status: 403,

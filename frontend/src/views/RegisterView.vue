@@ -20,19 +20,12 @@ const challengeToken = ref("");
 const emailHint = ref("");
 const loading = ref(false);
 const registrationForm = ref(null);
-const { errorFor, clearError, clearErrors, applyApiError } = useFormErrors();
+const { errorFor, clearError, clearErrors, validate, applyApiError } = useFormErrors();
 const resendLoading = ref(false);
 const resendIn = ref(0);
 let cooldownTimer;
 const emailValid = computed(() =>
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.value),
-);
-const formValid = computed(() =>
-  challengeToken.value
-    ? /^\d{6}$/.test(code.value)
-    : emailValid.value &&
-      password.value.length >= 12 &&
-      password.value === passwordConfirmation.value,
 );
 
 function startResendCooldown(seconds) {
@@ -46,11 +39,9 @@ function startResendCooldown(seconds) {
 }
 
 async function register() {
-  if (loading.value || !formValid.value) return;
-  if (password.value !== passwordConfirmation.value) {
-    toast.warning(t("auth.password_mismatch"));
-    return;
-  }
+  if (loading.value) return;
+  const valid = await validateRegistration();
+  if (!valid) { toast.warning(t("validation.fix_fields")); return; }
 
   loading.value = true;
   clearErrors();
@@ -72,15 +63,16 @@ async function register() {
       toast.info(t("auth.otp_sent", { email: response.email_hint }));
     }
   } catch (requestError) {
-    await applyApiError(requestError, registrationForm.value);
-    toast.error(requestError.message);
+    await applyApiError(requestError, registrationForm.value); toast.error(requestError.message);
   } finally {
     loading.value = false;
   }
 }
 
 async function verifyOtp() {
-  if (loading.value || !formValid.value) return;
+  if (loading.value) return;
+  const valid = await validate({ code: () => /^\d{6}$/.test(code.value) ? "" : t("validation.otp") }, registrationForm.value);
+  if (!valid) { toast.warning(t("validation.fix_fields")); return; }
   loading.value = true;
   try {
     const { user } = await apiFetch("/api/v1/session/verify_otp", {
@@ -93,7 +85,7 @@ async function verifyOtp() {
     setUser(user);
     await router.push("/");
   } catch (requestError) {
-    toast.error(requestError.message);
+    await applyApiError(requestError, registrationForm.value); toast.error(requestError.message);
   } finally {
     loading.value = false;
   }
@@ -118,6 +110,14 @@ async function resendOtp() {
   }
 }
 onBeforeUnmount(() => window.clearInterval(cooldownTimer));
+
+function validateRegistration() {
+  return validate({
+    email_address: () => !email.value ? t("validation.required") : !emailValid.value ? t("validation.email") : "",
+    password: () => password.value.length < 12 ? t("validation.password_min") : "",
+    password_confirmation: () => !passwordConfirmation.value ? t("validation.required") : password.value !== passwordConfirmation.value ? t("validation.password_mismatch") : "",
+  }, registrationForm.value);
+}
 </script>
 
 <template>
@@ -126,6 +126,7 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer));
   >
     <form
       ref="registrationForm"
+      novalidate
       class="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/60"
       @submit.prevent="challengeToken ? verifyOtp() : register()"
     >
@@ -184,9 +185,10 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer));
       </div>
 
       <div v-else class="mt-8">
-        <FormField :label="t('auth.otp')">
+        <FormField :label="t('auth.otp')" :error="errorFor('code')">
           <TextInput
             v-model="code"
+            name="code"
             :disabled="loading"
             type="text"
             inputmode="numeric"
@@ -196,6 +198,7 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer));
             required
             autofocus
             class="text-center text-2xl font-bold tracking-[0.45em]"
+            @input="clearError('code')"
           />
         </FormField>
       </div>
@@ -203,7 +206,7 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer));
       <AsyncButton
         type="submit"
         :loading="loading"
-        :disabled="resendLoading || !formValid"
+        :disabled="resendLoading"
         :loading-text="
           t(challengeToken ? 'auth.verifying' : 'auth.registering')
         "

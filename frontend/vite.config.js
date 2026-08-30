@@ -31,6 +31,10 @@ export default defineConfig({
           })
         },
       },
+      '/rails/active_storage': {
+        target: process.env.VITE_RAILS_URL || 'http://localhost:3000',
+        changeOrigin: true,
+      },
     },
   },
 })

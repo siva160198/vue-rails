@@ -1,0 +1,7 @@
+<%= t("mailers.security.suspicious_login_title") %>
+
+<%= t("mailers.security.suspicious_login_body") %>
+IP: <%= @ip_address %>
+<%= t("mailers.login_notification.device") %>: <%= @user_agent.presence || "—" %>
+
+<%= t("mailers.security.secure_account") %>: <%= @security_url %>

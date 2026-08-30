@@ -8,9 +8,12 @@ module Api
 
         PERMISSION_DEPENDENCIES = {
           "users.update" => "users.view",
+          "account_security.update" => "account_security.view",
+          "profile.update" => "profile.view",
           "roles.create" => "roles.view",
           "roles.update" => "roles.view",
-          "roles.delete" => "roles.view"
+          "roles.delete" => "roles.view",
+          "security_approvals.update" => "security_approvals.view"
         }.freeze
 
         def index
@@ -27,6 +30,9 @@ module Api
         def create
           role = Role.new(role_params.except(:permission_keys))
           authorize role
+          return render_validation_error(role) unless role.valid?
+          return unless require_admin_dual_control!("admin.role_create", role_params.to_h)
+          return unless require_step_up!("admin_role_change")
           Role.transaction do
             role.save!
             assign_permissions(role)
@@ -51,6 +57,8 @@ module Api
           desired_permission_ids = permissions_for(role).ids.sort
           unchanged = !role.changed? && role.permission_ids.sort == desired_permission_ids
           return render json: { role: role_json(role), unchanged: true } if unchanged
+          return unless require_admin_dual_control!("admin.role_update", role_params.to_h.merge("role_id" => role.id))
+          return unless require_step_up!("admin_role_change")
 
           Role.transaction do
             role.save!
@@ -65,6 +73,8 @@ module Api
         def destroy
           role = Role.find(params[:id])
           authorize role
+          return unless require_admin_dual_control!("admin.role_delete", { role_id: role.id, key: role.key })
+          return unless require_step_up!("admin_role_change")
           snapshot = role_json(role)
           role.destroy!
           AuditLog.record!(action: "admin.role_deleted", actor: Current.user, metadata: { role: snapshot }, request: request)

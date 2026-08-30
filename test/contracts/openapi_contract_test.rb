@@ -36,6 +36,8 @@ class OpenapiContractTest < ActiveSupport::TestCase
     end
 
     mutations.each do |path, verb, operation|
+      next if path == "/api/v1/csp_reports" # Browsers send CSP reports outside the application's fetch/CSRF flow.
+
       references = operation.fetch("parameters", []).filter_map { |parameter| parameter["$ref"] }
       assert_includes references, "#/components/parameters/CsrfToken", "#{verb.upcase} #{path} must document CSRF"
     end

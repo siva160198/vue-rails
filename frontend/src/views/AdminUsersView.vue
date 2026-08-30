@@ -15,12 +15,17 @@ import AppModal from "../components/AppModal.vue";
 import FormField from "../components/FormField.vue";
 import ToggleInput from "../components/ToggleInput.vue";
 import TableActionButton from "../components/TableActionButton.vue";
+import { useFormErrors } from "../services/formErrors";
+import StepUpPrompt from "../components/security/StepUpPrompt.vue";
 
 const roles = ref([]);
 const savingUserIds = ref(new Set());
 const editingUser = ref(null);
 const editSnapshot = ref(null);
 const modalLoading = ref(false);
+const editFormElement = ref(null);
+const editErrors = useFormErrors();
+const pendingSecureUser = ref(null);
 let modalRequestSequence = 0;
 const { user: admin, can } = useAuth();
 const {
@@ -54,6 +59,7 @@ const roleName = (key) =>
   roles.value.find((role) => role.key === key)?.name || key;
 
 async function openEditModal(user) {
+  editErrors.clearErrors();
   const requestSequence = ++modalRequestSequence;
   editingUser.value = { id: user.id, email_address: user.email_address };
   editSnapshot.value = null;
@@ -84,12 +90,15 @@ function closeEditModal() {
   editSnapshot.value = null;
 }
 
-async function saveUser(user) {
+async function saveUser(user, stepUpToken = "") {
   if (savingUserIds.value.has(user.id) || !hasUserChanges.value) return;
+  const valid = await editErrors.validate({ role: () => user.role ? "" : t("validation.required") }, editFormElement.value);
+  if (!valid) { toast.warning(t("validation.fix_fields")); return; }
   savingUserIds.value = new Set(savingUserIds.value).add(user.id);
   try {
     const response = await apiFetch(`/api/v1/admin/users/${user.id}`, {
       method: "PATCH",
+      headers: stepUpToken ? { "X-Step-Up-Token": stepUpToken } : {},
       body: JSON.stringify({ role: user.role, active: user.active }),
     });
     updateUser(user.id, response.user);
@@ -97,13 +106,15 @@ async function saveUser(user) {
     editingUser.value = null;
     editSnapshot.value = null;
   } catch (requestError) {
-    toast.error(requestError.message);
+    if (requestError.code === "STEP_UP_REQUIRED") { pendingSecureUser.value = user; return; }
+    await editErrors.applyApiError(requestError, editFormElement.value); toast.error(requestError.message);
   } finally {
     const nextIds = new Set(savingUserIds.value);
     nextIds.delete(user.id);
     savingUserIds.value = nextIds;
   }
 }
+async function finishSecureUser(token) { const target = pendingSecureUser.value; pendingSecureUser.value = null; await saveUser(target, token); }
 </script>
 
 <template>
@@ -185,14 +196,18 @@ async function saveUser(user) {
     >
       <form
         v-if="editingUser"
+        ref="editFormElement"
         id="edit-user-form"
+        novalidate
         class="space-y-5"
         @submit.prevent="saveUser(editingUser)"
       >
-            <FormField :label="t('users.role')">
+            <FormField :label="t('users.role')" :error="editErrors.errorFor('role')">
               <SelectInput
                 v-model="editingUser.role"
+                name="role"
                 :disabled="savingUserIds.has(editingUser.id)"
+                @change="editErrors.clearError('role')"
               >
                 <option v-for="role in roles" :key="role.key" :value="role.key">
                   {{ role.name }}
@@ -227,5 +242,6 @@ async function saveUser(user) {
             </AsyncButton>
       </template>
     </AppModal>
+    <AppModal :open="Boolean(pendingSecureUser)" :title="t('security.additional_verification')" size="md" @close="pendingSecureUser = null"><StepUpPrompt v-if="pendingSecureUser" purpose="admin_user_update" @verified="finishSecureUser" @cancel="pendingSecureUser = null" /></AppModal>
   </AdminLayout>
 </template>

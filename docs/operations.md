@@ -14,6 +14,22 @@ bin/rails runner 'abort unless User.limit(1).exists?'
 ```
 
 Never restore over production without an approved incident plan and a fresh backup.
+CI executes this restore procedure against an isolated database on every change. Production
+operators must still monitor off-site backup age and perform a provider-level recovery drill.
+
+## Security operations
+
+- Ship structured `security_audit` log events to append-only external storage and alert when
+  its HMAC chain verification fails. Database retention is controlled by
+  `AUDIT_LOG_RETENTION_DAYS`.
+- Keep `PASSWORD_BREACH_CHECK_ENABLED` optional; its HIBP request contains only the first five
+  SHA-1 characters and uses padded responses. Availability failures never reveal a password.
+- Install ClamAV and set an absolute `CLAMSCAN_PATH` before enabling `MALWARE_SCAN_ENABLED`.
+  Enabled scans fail closed and run with a bounded timeout.
+- Review CSP reports without retaining query strings. Keep HSTS preload disabled until every
+  current and future subdomain is permanently HTTPS.
+- CI pins external actions by commit SHA and runs secret, static-code, dependency, container,
+  SBOM, and OWASP ZAP checks. Dependabot updates must be reviewed rather than auto-merged.
 
 ## Deploy and rollback
 

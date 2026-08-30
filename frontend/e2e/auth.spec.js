@@ -37,6 +37,25 @@ async function waitForNewMail(previousEntries) {
 
 test.describe.configure({ mode: 'serial' })
 
+test('forms explain invalid fields inline before sending requests', async ({ page }) => {
+  await page.goto('/login')
+  await page.getByRole('button', { name: 'Login', exact: true }).click()
+  await expect(page.getByLabel('Email')).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByText('Field ini wajib diisi.').first()).toBeVisible()
+
+  await page.goto('/register')
+  await page.getByLabel('Email').fill('email-tidak-valid')
+  await page.getByRole('button', { name: 'Daftar', exact: true }).click()
+  await expect(page.getByLabel('Email')).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByText('Masukkan alamat email yang valid.')).toBeVisible()
+
+  await page.goto('/forgot-password')
+  await page.getByLabel('Email').fill('email-tidak-valid')
+  await page.getByRole('button', { name: 'Kirim link reset' }).click()
+  await expect(page.getByLabel('Email')).toHaveAttribute('aria-invalid', 'true')
+  await expect(page.getByText('Masukkan alamat email yang valid.')).toBeVisible()
+})
+
 test('member can register and verify email with OTP', async ({ page }) => {
   const email = `member-${Date.now()}@example.test`
   const beforeMail = await mailSnapshot()
@@ -90,8 +109,9 @@ test('admin can login with password and email OTP', async ({ page }) => {
   await page.keyboard.press('Escape')
   await page.keyboard.press('Escape')
 
-  await page.goto('/admin/sessions')
+  await page.goto('/profile')
   await expect(page.getByRole('heading', { name: 'Perangkat aktif' })).toBeVisible()
+  await page.locator('section').filter({ hasText: 'Perangkat aktif' }).getByRole('button', { name: 'Lihat' }).click()
   await expect(page.getByText('Saat ini')).toBeVisible()
 
   await page.goto('/admin/audit-logs')
@@ -106,6 +126,13 @@ test('admin can login with password and email OTP', async ({ page }) => {
 
   await page.setViewportSize({ width: 768, height: 1024 })
   await expect(page.getByRole('button', { name: 'Buka menu' })).toBeVisible()
+
+  await page.setViewportSize({ width: 1440, height: 900 })
+  await page.context().clearCookies()
+  await page.getByRole('button', { name: 'Manajemen Pengguna' }).click()
+  await page.getByRole('link', { name: 'Pengguna', exact: true }).click()
+  await expect(page).toHaveURL(/\/login\?redirect=(%2F|\/)admin(%2F|\/)users/)
+  await expect(page.getByText('Sesi Anda telah berakhir. Silakan login kembali.')).toBeVisible()
 })
 
 test('user can reset password from a signed email link', async ({ page }) => {

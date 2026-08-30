@@ -16,9 +16,15 @@ permissions = {
   "audit_logs.view" => [ "Lihat audit logs", "Melihat riwayat aktivitas keamanan." ],
   "sessions.view" => [ "Lihat perangkat", "Melihat perangkat dan sesi login milik sendiri." ],
   "sessions.delete" => [ "Hapus sesi", "Mengakhiri sesi login milik sendiri." ],
+  "account_security.view" => [ "Lihat keamanan akun", "Melihat keamanan dan riwayat login milik sendiri." ],
+  "account_security.update" => [ "Ubah keamanan akun", "Mengubah password, email, recovery code, dan passkey milik sendiri." ],
+  "profile.view" => [ "Lihat profil", "Melihat profil akun sendiri." ],
+  "profile.update" => [ "Ubah profil", "Mengubah foto dan informasi profil akun sendiri." ],
   "jobs.view" => [ "Lihat antrean job", "Melihat status antrean dan job gagal." ],
   "jobs.update" => [ "Kelola job gagal", "Mencoba ulang atau menghapus job gagal." ],
-  "api_docs.view" => [ "Lihat dokumentasi API", "Membuka dokumentasi OpenAPI interaktif." ]
+  "api_docs.view" => [ "Lihat dokumentasi API", "Membuka dokumentasi OpenAPI interaktif." ],
+  "security_approvals.view" => [ "Lihat persetujuan keamanan", "Melihat perubahan admin yang menunggu persetujuan." ],
+  "security_approvals.update" => [ "Setujui perubahan keamanan", "Menyetujui perubahan sensitif yang diajukan administrator lain." ]
 }
 permissions.each do |key, (name, description)|
   Permission.find_or_initialize_by(key: key).tap do |permission|
@@ -27,8 +33,8 @@ permissions.each do |key, (name, description)|
 end
 Permission.where(key: "roles.manage").destroy_all
 Role.find_by!(key: "admin").permissions = Permission.all
-session_permissions = Permission.where(key: %w[sessions.view sessions.delete])
-Role.where.not(key: "admin").find_each { |role| role.permissions |= session_permissions }
+self_service_permissions = Permission.where(key: %w[sessions.view sessions.delete account_security.view account_security.update profile.view profile.update])
+Role.where.not(key: "admin").find_each { |role| role.permissions |= self_service_permissions }
 
 if Rails.env.development?
   admin = User.find_or_initialize_by(email_address: ENV.fetch("ADMIN_EMAIL", "admin@vue_rails.local"))

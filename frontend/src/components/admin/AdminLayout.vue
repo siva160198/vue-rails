@@ -6,12 +6,12 @@ import {
   BookOpen,
   BriefcaseBusiness,
   ChevronDown,
+  ClipboardCheck,
   Compass,
   LayoutDashboard,
   LogOut,
   Menu,
   Moon,
-  MonitorSmartphone,
   PanelLeftClose,
   PanelLeftOpen,
   ScrollText,
@@ -19,10 +19,12 @@ import {
   ShieldCheck,
   Sun,
   Users,
+  UserRound,
   X,
 } from "@lucide/vue";
 import AsyncButton from "../AsyncButton.vue";
 import LanguageSwitcher from "../LanguageSwitcher.vue";
+import { useClickOutside } from "../../composables/useClickOutside";
 import { t } from "../../services/i18n";
 import { toast } from "../../services/toast";
 import { useAuth } from "../../services/auth";
@@ -30,14 +32,22 @@ import { useAuth } from "../../services/auth";
 const route = useRoute();
 const router = useRouter();
 const { user, permissions, logout, logoutLoading } = useAuth();
+const profileInitial = computed(() => user.value?.first_name?.charAt(0).toUpperCase() || user.value?.email_address?.charAt(0).toUpperCase() || "U");
+const accountName = computed(() => [user.value?.first_name, user.value?.last_name].filter(Boolean).join(" ") || user.value?.email_address?.split("@")[0] || t("profile.menu"));
 const sidebarOpen = ref(false);
 const desktopSidebarOpen = ref(true);
 const profileOpen = ref(false);
+const profileMenu = ref(null);
+const notificationOpen = ref(false);
+const notificationMenu = ref(null);
 const dark = ref(false);
 const userManagementOpen = ref(
   route.path.startsWith("/admin/users") ||
     route.path.startsWith("/admin/roles"),
 );
+
+useClickOutside(profileMenu, () => { profileOpen.value = false; });
+useClickOutside(notificationMenu, () => { notificationOpen.value = false; });
 
 const navigation = computed(() => [
   {
@@ -65,12 +75,6 @@ const navigation = computed(() => [
     ],
   },
   {
-    label: t("nav.sessions"),
-    icon: MonitorSmartphone,
-    to: "/admin/sessions",
-    permission: "sessions.view",
-  },
-  {
     label: t("nav.audit_logs"),
     icon: ScrollText,
     to: "/admin/audit-logs",
@@ -78,6 +82,7 @@ const navigation = computed(() => [
   },
   { label: t("nav.jobs"), icon: BriefcaseBusiness, to: "/admin/jobs", permission: "jobs.view" },
   { label: t("nav.api_docs"), icon: BookOpen, to: "/admin/api-docs", permission: "api_docs.view" },
+  { label: t("nav.security_approvals"), icon: ClipboardCheck, to: "/admin/security-approvals", permission: "security_approvals.view" },
 ]);
 
 const visibleNavigation = computed(() =>
@@ -318,30 +323,28 @@ async function signOut() {
           >
             <Sun v-if="dark" :size="19" /><Moon v-else :size="19" />
           </button>
-          <button
-            class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800"
-          >
-            <Bell :size="19" /><span
-              class="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-error-700 dark:border-gray-900"
-            ></span>
-          </button>
+          <div ref="notificationMenu" class="relative">
+            <button :aria-label="t('admin.notifications')" :aria-expanded="notificationOpen" class="relative flex h-10 w-10 items-center justify-center rounded-full border border-gray-200 text-gray-500 hover:bg-gray-100 dark:border-gray-800 dark:hover:bg-gray-800" @click="notificationOpen = !notificationOpen">
+              <Bell :size="19" /><span class="absolute right-0 top-0 h-2.5 w-2.5 rounded-full border-2 border-white bg-error-700 dark:border-gray-900"></span>
+            </button>
+            <div v-if="notificationOpen" class="absolute right-0 z-50 mt-3 w-[min(20rem,calc(100vw-2rem))] rounded-xl border border-gray-200 bg-white p-4 shadow-theme-lg dark:border-gray-800 dark:bg-gray-900">
+              <div class="border-b border-gray-100 pb-3 dark:border-gray-800"><h2 class="text-sm font-semibold text-gray-900 dark:text-white">{{ t("admin.notifications") }}</h2></div>
+              <div class="py-8 text-center"><Bell :size="24" class="mx-auto text-gray-400" /><p class="mt-3 text-sm text-gray-500">{{ t("admin.no_notifications") }}</p></div>
+            </div>
+          </div>
           <LanguageSwitcher />
-          <div class="relative">
+          <div ref="profileMenu" class="relative">
             <button
+              :aria-label="t('profile.account_menu')"
               class="flex items-center gap-3"
               @click="profileOpen = !profileOpen"
             >
-              <span
-                class="flex h-10 w-10 items-center justify-center rounded-full bg-brand-100 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"
-                >A</span
-              >
+              <span class="flex h-10 w-10 items-center justify-center overflow-hidden rounded-full bg-brand-100 font-semibold text-brand-600 dark:bg-brand-500/15 dark:text-brand-400"><img v-if="user?.avatar_url" :src="user.avatar_url" :alt="t('profile.avatar_alt')" class="h-full w-full object-cover" /><span v-else>{{ profileInitial }}</span></span>
               <span class="hidden text-left md:block"
                 ><strong
-                  class="block max-w-40 truncate text-sm text-gray-700 dark:text-gray-200"
-                  >{{ t("admin.administrator") }}</strong
-                ><small class="text-gray-400">{{
-                  user?.email_address
-                }}</small></span
+                  class="block max-w-[8ch] truncate text-sm text-gray-700 dark:text-gray-200"
+                  :title="accountName"
+                  >{{ accountName }}</strong></span
               >
               <ChevronDown :size="16" class="hidden text-gray-400 md:block" />
             </button>
@@ -353,12 +356,14 @@ async function signOut() {
                 class="border-b border-gray-100 px-2 pb-3 dark:border-gray-800"
               >
                 <p class="text-sm font-medium dark:text-white">
-                  {{ t("admin.administrator") }}
+                  <span>{{ accountName }}</span>
                 </p>
                 <p class="mt-1 truncate text-xs text-gray-500">
                   {{ user?.email_address }}
                 </p>
+                <p class="mt-1 text-xs capitalize text-gray-400">{{ user?.role }}</p>
               </div>
+              <RouterLink v-if="permissions.includes('profile.view')" to="/profile" class="mt-2 flex w-full items-center gap-2 rounded-lg px-2 py-2 text-sm text-gray-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800" @click="profileOpen = false"><UserRound :size="18" />{{ t("profile.menu") }}</RouterLink>
               <AsyncButton
                 :loading="logoutLoading"
                 :loading-text="t('admin.signing_out')"

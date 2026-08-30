@@ -29,6 +29,9 @@ module Api
         user.assign_attributes(password_params)
         if user.save
           user.sessions.destroy_all
+          user.increment!(:authentication_version)
+          user.login_challenges.delete_all
+          user.step_up_challenges.delete_all
           AuditLog.record!(action: "password.reset", actor: user, auditable: user, request: request)
           SecurityNotificationMailer.with(user: user).password_changed.deliver_later
           render json: { message: "Password berhasil diperbarui. Silakan login." }

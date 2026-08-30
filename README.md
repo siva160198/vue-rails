@@ -201,6 +201,8 @@ release phase before switching traffic.
 - User management: `http://localhost:5173/admin/users`
 - Audit logs: `http://localhost:5173/admin/audit-logs`
 - Active devices: `http://localhost:5173/admin/sessions`
+- Account security: `http://localhost:5173/account/security`
+- Profile: `http://localhost:5173/profile`
 
 Admins can search users, change member/admin roles, and disable accounts. An
 admin cannot change their own access. Disabling a user revokes their sessions,
@@ -210,6 +212,61 @@ Users can review their own active login sessions, see login time, IP address, an
 browser user-agent, revoke one session, or revoke every session except the current
 device. Every successful login sends a security notification email. Session APIs
 are always ownership-scoped and never expose another user's devices.
+
+The TailAdmin account menu in the top-right header shows the user's truncated name and
+links to Profile directly above Sign out. Profile is one account hub without tabs: personal
+information, account-security actions, active devices, and login history use lazy Edit/View
+modals. Profile photos are changed from stable actions in the Personal Information modal and stored as stripped, square
+AVIF files no larger than 50 KB; SVG uploads are rejected.
+
+The Account security page supports changing the current password after a single-use
+password-plus-OTP/TOTP step-up, changing email
+after verification at the new address, personal login history, and recovery-code
+regeneration protected by both the current password and an email OTP. Passkeys are
+optional: set `WEBAUTHN_RP_ID` and `WEBAUTHN_ORIGIN` together (plus the optional
+`WEBAUTHN_RP_NAME`) to enable registration and sign-in. Production origins must use
+HTTPS; password and email OTP remain available as fallback authentication methods.
+RFC 6238 authenticator apps are supported without an external service. TOTP secrets and
+profile phone numbers are encrypted at rest. Roles listed in `MFA_REQUIRED_ROLES` cannot
+remove their final enrolled TOTP/passkey method.
+
+Sessions have both an idle timeout (`SESSION_IDLE_TIMEOUT_MINUTES`) and an absolute
+lifetime (`SESSION_ABSOLUTE_LIFETIME_DAYS`). Security credential changes rotate the
+current session, revoke other sessions, and invalidate trusted-browser grants. Login
+protection applies per-account lockout plus combined IP/account-digest detection to
+slow credential stuffing without storing attempted email addresses. Administrators
+must complete MFA on every new login when included in `MFA_REQUIRED_ROLES` (the default is
+`admin`). Sensitive actions use the reusable `/api/v1/step_up` flow and consume a
+database-backed, short-lived, purpose-bound grant exactly once. Password history rejects
+the five latest passwords; `PASSWORD_BREACH_CHECK_ENABLED=true` additionally enables the
+privacy-preserving HIBP range lookup.
+
+Old-address email notifications contain a 24-hour signed reversal link. Reversal restores
+the previous address and revokes every session. Password, passkey, and authenticator changes
+also send a "not me" security notification. Optional upload malware scanning uses ClamAV
+when `MALWARE_SCAN_ENABLED=true`; uploads fail closed if the configured scanner is unavailable.
+Set `ADMIN_DUAL_CONTROL_ENABLED=true` to require a second administrator to approve exact
+role, permission, and account-access payloads. Pending requests appear under Security
+approvals, cannot be self-approved, expire after 30 minutes, and are consumed once.
+
+When an authenticated Vue request receives `401 AUTHENTICATION_REQUIRED`, the global
+session-expiration coordinator clears the singleton auth state, invalidates the cached
+CSRF token, shows one localized toast, and redirects to login while preserving the full
+current URL in the `redirect` query. Concurrent failures are deduplicated and ordinary
+invalid-login responses never trigger this behavior.
+
+Adaptive login protection uses a bounded progressive delay and a risk score based on
+recent IP failures, distinct account digests, account history, and whether the browser
+has an existing session history. A hard account lock is reserved for repeated high-risk
+failures; a successfully verified CAPTCHA can still authenticate and clear an abusive
+lock, reducing email-targeted denial of service. Suspicious-login email is limited to
+one notification per hour per account and links to password recovery.
+
+Cloudflare Turnstile is optional. Set `TURNSTILE_SITE_KEY` and
+`TURNSTILE_SECRET_KEY` together to enable its inline SPA widget and mandatory server-side
+Siteverify validation. Tokens are never logged or persisted. `TRUSTED_LOGIN_NETWORKS`
+accepts comma-separated CIDRs and is matched only against Rails `request.remote_ip`;
+configure trusted reverse proxies at the infrastructure layer before relying on it.
 
 ## API documentation
 
@@ -228,6 +285,9 @@ npm run test:coverage --prefix frontend
 npm run test:e2e --prefix frontend
 npm run build --prefix frontend
 bin/rubocop
+bin/brakeman --no-pager
+bin/bundler-audit check
+npm audit --prefix frontend --audit-level=high
 ```
 
 Rails tests generate a SimpleCov report in `tmp/coverage`. Frontend coverage is

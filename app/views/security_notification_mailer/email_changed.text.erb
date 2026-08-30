@@ -1,0 +1,5 @@
+<%= t("mailers.security.email_changed_title") %>
+
+<%= t("mailers.security.email_changed_body", email: @user.email_address) %>
+
+<%= t("mailers.security.revert_email") %>: <%= @revert_url %>

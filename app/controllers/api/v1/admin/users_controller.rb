@@ -23,11 +23,16 @@ module Api
           user = User.find(params[:id])
           authorize user
           attributes = requested_attributes
-          return render_last_admin_error if removes_last_admin?(user, attributes)
-
+          if user == Current.user && (attributes.key?("role") || attributes["active"] == false)
+            return render_api_error("CANNOT_CHANGE_OWN_ADMIN_ACCESS", status: :forbidden)
+          end
           previous = user.slice("role", "active")
           user.assign_attributes(attributes)
           return render json: { user: user_json(user), unchanged: true } unless user.changed?
+          return render_validation_error(user) unless user.valid?
+          return unless require_admin_dual_control!("admin.user_access", { user_id: user.id, role: user.role, active: user.active })
+          return unless require_step_up!("admin_user_update")
+          return render_last_admin_error if removes_last_admin?(user, attributes)
 
           User.transaction do
             user.save!
@@ -64,7 +69,7 @@ module Api
           end
 
           def removes_last_admin?(user, attributes)
-            return false unless user.admin? && user.active?
+            return false unless user.role_in_database == "admin" && user.active_in_database
             return false if attributes.fetch("role", user.role) == "admin" && ActiveModel::Type::Boolean.new.cast(attributes.fetch("active", user.active?))
 
             User.admin.where(active: true).count == 1

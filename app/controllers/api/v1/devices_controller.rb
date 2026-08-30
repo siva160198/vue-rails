@@ -5,7 +5,7 @@ module Api
 
       def index
         authorize Session
-        sessions, pagination = paginate_api(policy_scope(Session), search_columns: %w[ip_address user_agent], sortable_columns: %w[ip_address user_agent created_at updated_at], default_sort: :created_at, default_direction: :desc)
+        sessions, pagination = paginate_api(policy_scope(Session).active, search_columns: %w[ip_address user_agent], sortable_columns: %w[ip_address user_agent created_at last_seen_at expires_at], default_sort: :created_at, default_direction: :desc)
         render json: { sessions: sessions.map { |session| session_json(session) }, pagination: pagination }
       end
 
@@ -21,6 +21,7 @@ module Api
 
       def destroy_others
         authorize Session, :destroy?
+        return unless require_step_up!("sessions_revoke")
         removed = policy_scope(Session).where.not(id: Current.session.id).delete_all
         AuditLog.record!(action: "session.others_revoked", actor: Current.user, auditable: Current.user, metadata: { count: removed }, request: request)
         render json: { removed: removed }
@@ -28,7 +29,7 @@ module Api
 
       private
         def session_json(session)
-          session.as_json(only: %i[id ip_address user_agent created_at updated_at]).merge(current: session.id == Current.session.id)
+          session.as_json(only: %i[id ip_address user_agent created_at last_seen_at expires_at]).merge(current: session.id == Current.session.id)
         end
     end
   end

@@ -1,0 +1,4 @@
+<h1><%= t("mailers.email_change.title") %></h1>
+<p><%= t("mailers.email_change.intro") %></p>
+<p style="font-size: 28px; font-weight: 700; letter-spacing: 6px"><%= @code %></p>
+<p><%= t("mailers.email_change.expiry", minutes: @expires_in) %></p>

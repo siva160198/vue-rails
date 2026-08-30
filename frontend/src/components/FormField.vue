@@ -9,15 +9,16 @@ const props = defineProps({
   error: { type: [String, Array], default: "" },
 });
 const generatedId = useId();
+const hasError = computed(() => Array.isArray(props.error) ? props.error.length > 0 : Boolean(props.error));
 const controlId = computed(() => props.forId || `field-${generatedId}`);
 const helpId = computed(() => (props.help ? `${controlId.value}-help` : undefined));
-const errorId = computed(() => (props.error ? `${controlId.value}-error` : undefined));
+const errorId = computed(() => (hasError.value ? `${controlId.value}-error` : undefined));
 const describedBy = computed(() => [helpId.value, errorId.value].filter(Boolean).join(" ") || undefined);
 
 provide(formFieldContextKey, {
   controlId,
   describedBy,
-  invalid: computed(() => Boolean(props.error)),
+  invalid: hasError,
 });
 </script>
 
@@ -28,7 +29,7 @@ provide(formFieldContextKey, {
     </label>
     <slot />
     <p v-if="help" :id="helpId" class="mt-1.5 text-xs text-gray-500">{{ help }}</p>
-    <p v-if="error" :id="errorId" role="alert" class="mt-1.5 text-xs text-error-700">
+    <p v-if="hasError" :id="errorId" role="alert" class="mt-1.5 text-xs text-error-700">
       {{ Array.isArray(error) ? error.join(", ") : error }}
     </p>
     <slot name="after" />
