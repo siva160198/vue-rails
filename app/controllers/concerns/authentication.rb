@@ -40,7 +40,7 @@ module Authentication
     end
 
     def request_authentication
-      if request.format.json?
+      if request.path.start_with?("/api/")
         render_api_error("AUTHENTICATION_REQUIRED", status: :unauthorized)
       else
         session[:return_to_after_authenticating] = request.url

@@ -5,6 +5,11 @@ module Api
       allow_unauthenticated_access only: %i[create verify_otp resend_otp passkey_options passkey]
       rate_limit to: 10, within: 3.minutes, only: %i[create verify_otp resend_otp passkey_options passkey],
         with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }
+      rate_limit to: 10, within: 3.minutes, only: :create,
+        by: -> { EmailPrivacyDigest.call(params[:email_address]) },
+        with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }, name: "login-account"
+      rate_limit to: 300, within: 1.minute, only: :create, by: -> { "global" },
+        with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }, name: "login-global"
 
       def show
         render json: { user: user_json(Current.user) }
@@ -16,8 +21,6 @@ module Api
         captcha_verified = verify_captcha_if_required(protection, candidate)
         return if performed?
         return blocked_login(candidate, protection) if protection.hard_locked?(candidate, captcha_verified: captcha_verified)
-
-        protection.delay!
 
         user = User.authenticate_by(params.permit(:email_address, :password))
         if user && !user.active?
@@ -69,10 +72,10 @@ module Api
       def passkey_options
         return passkeys_disabled unless WebauthnConfiguration.enabled?
         user = User.find_by(email_address: params[:email_address].to_s.strip.downcase, active: true)
-        return render_api_error("INVALID_CREDENTIALS", status: :unauthorized, details: { email_address: [ I18n.t("api.errors.invalid_credentials") ] }) unless user&.webauthn_credentials&.exists?
-
-        options = WebAuthn::Credential.options_for_get(allow: user.webauthn_credentials.pluck(:external_id), user_verification: "required")
-        render json: { options: options, challenge_token: passkey_token(user, options.challenge) }
+        credential_ids = user&.webauthn_credentials&.pluck(:external_id)
+        credential_ids = [ SecureRandom.urlsafe_base64(32) ] if credential_ids.blank?
+        options = WebAuthn::Credential.options_for_get(allow: credential_ids, user_verification: "required")
+        render json: { options: options, challenge_token: passkey_token(user&.id || 0, options.challenge) }
       end
 
       def passkey
@@ -102,11 +105,11 @@ module Api
 
       private
         def user_json(user)
-          user.as_json(only: %i[id email_address role first_name last_name]).merge(permissions: user.permission_keys, avatar_url: user.avatar.attached? ? rails_blob_path(user.avatar, only_path: true) : nil)
+          user.as_json(only: %i[id email_address role first_name last_name]).merge(permissions: user.permission_keys, avatar_url: user.avatar.attached? ? "/api/v1/profile/avatar?v=#{user.avatar.blob_id}" : nil)
         end
 
-        def passkey_token(user, challenge)
-          Rails.application.message_verifier(:webauthn_ceremony).generate({ ceremony: "authentication", user_id: user.id, challenge: challenge }, expires_in: 5.minutes)
+        def passkey_token(user_id, challenge)
+          Rails.application.message_verifier(:webauthn_ceremony).generate({ ceremony: "authentication", user_id: user_id, challenge: challenge }, expires_in: 5.minutes)
         end
 
         def passkeys_disabled

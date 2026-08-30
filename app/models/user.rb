@@ -66,12 +66,29 @@ class User < ApplicationRecord
     self[:totp_secret] = value.presence && SecurityEncryptor.encrypt(value, purpose: "totp")
   end
 
+  def pending_totp_secret
+    SecurityEncryptor.decrypt(self[:pending_totp_secret], purpose: "pending-totp")
+  end
+
+  def pending_totp_secret=(value)
+    self[:pending_totp_secret] = value.presence && SecurityEncryptor.encrypt(value, purpose: "pending-totp")
+  end
+
   def totp_enabled?
     totp_enabled_at.present? && totp_secret.present?
   end
 
   def verify_totp(code)
-    totp_enabled? && TotpAuthenticator.valid?(totp_secret, code)
+    with_lock do
+      reload
+      return false unless totp_enabled?
+
+      counter = TotpAuthenticator.matching_counter(totp_secret, code)
+      return false unless counter && (last_totp_counter.nil? || counter > last_totp_counter)
+
+      update_column(:last_totp_counter, counter)
+      true
+    end
   end
 
   def mfa_enabled?
@@ -85,11 +102,14 @@ class User < ApplicationRecord
   end
 
   def consume_recovery_code(code)
-    index = recovery_code_digests.index { |digest| BCrypt::Password.new(digest).is_password?(code.to_s) }
-    return false unless index
+    with_lock do
+      reload
+      index = recovery_code_digests.index { |digest| BCrypt::Password.new(digest).is_password?(code.to_s) }
+      return false unless index
 
-    update!(recovery_code_digests: recovery_code_digests.without(recovery_code_digests[index]))
-    true
+      update!(recovery_code_digests: recovery_code_digests.without(recovery_code_digests[index]))
+      true
+    end
   end
 
   private

@@ -1,6 +1,15 @@
 require_relative "boot"
 
-require "rails/all"
+require "rails"
+require "active_model/railtie"
+require "active_job/railtie"
+require "active_record/railtie"
+require "active_storage/engine"
+require "action_controller/railtie"
+require "action_mailer/railtie"
+require "action_view/railtie"
+require "action_cable/engine"
+require_relative "../lib/request_size_limiter"
 
 # Require the gems listed in Gemfile, including any gems
 # you've limited to :test, :development, or :production.
@@ -17,6 +26,8 @@ module VueRails
     # not contain `.rb` files, or that should not be reloaded or eager loaded.
     # Common ones are `templates`, `generators`, or `middleware`, for example.
     config.autoload_lib(ignore: %w[assets tasks])
+    config.active_storage.draw_routes = false
+    config.middleware.insert_before 0, RequestSizeLimiter
 
     frontend_origin = ENV["FRONTEND_ORIGIN"]
     frontend_origin ||= "http://localhost:5173" unless Rails.env.production?

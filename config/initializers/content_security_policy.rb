@@ -9,7 +9,7 @@ if Rails.env.production?
       policy.form_action :self
       policy.frame_ancestors :none
       policy.frame_src :self, "https://challenges.cloudflare.com"
-      policy.img_src :self, :https, :data
+      policy.img_src :self, :data
       policy.object_src :none
       policy.script_src :self, "https://challenges.cloudflare.com"
       policy.style_src :self, :https

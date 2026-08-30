@@ -4,10 +4,15 @@ module Api
       allow_unauthenticated_access only: :create
       rate_limit to: 5, within: 10.minutes, only: :create,
         with: -> { render_api_error("REGISTRATION_RATE_LIMITED", status: :too_many_requests) }
+      rate_limit to: 3, within: 30.minutes, only: :create,
+        by: -> { EmailPrivacyDigest.call(params[:email_address]) },
+        with: -> { render_api_error("REGISTRATION_RATE_LIMITED", status: :too_many_requests) }, name: "registration-account"
+      rate_limit to: 100, within: 10.minutes, only: :create, by: -> { "global" },
+        with: -> { render_api_error("REGISTRATION_RATE_LIMITED", status: :too_many_requests) }, name: "registration-global"
 
       def create
         existing_user = User.find_by(email_address: params[:email_address].to_s.strip.downcase)
-        return continue_unverified_registration(existing_user) if existing_user && !existing_user.email_verified?
+        return continue_unverified_registration(existing_user) if existing_user && !existing_user.email_verified? && existing_user.authenticate(params[:password])
 
         user = User.new(registration_params)
         user.role = "member"
@@ -28,8 +33,11 @@ module Api
 
       private
         def continue_unverified_registration(user)
-          challenge, code = LoginChallenge.issue_for!(user)
-          LoginOtpMailer.with(user: user, code: code).verification_code.deliver_later
+          challenge = user.login_challenges.active.order(created_at: :desc).first
+          unless challenge&.usable? && challenge.created_at > LoginChallenge::RESEND_DELAY.ago
+            challenge, code = LoginChallenge.issue_for!(user)
+            LoginOtpMailer.with(user: user, code: code).verification_code.deliver_later
+          end
           render json: challenge_json(challenge, account_unverified: true), status: :accepted
         end
 

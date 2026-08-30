@@ -67,5 +67,18 @@ class OpenapiContractTest < ActiveSupport::TestCase
     assert_equal 50, pagination.dig("properties", "per_page", "maximum")
     assert_equal %w[code message details], error.fetch("required")
     assert_equal "object", error.dig("properties", "details", "type")
+
+    cursor = @document.dig("components", "schemas", "CursorPagination")
+    assert_equal %w[per_page next_cursor previous_cursor has_next has_previous total], cursor.fetch("required")
+    assert_equal [ "integer", "null" ], cursor.dig("properties", "total", "type")
+  end
+
+  test "large collections use cursor parameters without page offsets" do
+    %w[/api/v1/account_security /api/v1/admin/users /api/v1/admin/audit_logs /api/v1/admin/jobs].each do |path|
+      references = @document.dig("paths", path, "get", "parameters").pluck("$ref")
+      assert_includes references, "#/components/parameters/Cursor"
+      assert_includes references, "#/components/parameters/IncludeTotal"
+      assert_not_includes references, "#/components/parameters/Page"
+    end
   end
 end

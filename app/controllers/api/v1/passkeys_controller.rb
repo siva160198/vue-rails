@@ -8,6 +8,7 @@ module Api
         authorize :account_security, :update?
         return passkeys_disabled unless WebauthnConfiguration.enabled?
         return render_api_error("CURRENT_PASSWORD_INVALID", status: :unauthorized, details: { current_password: [ I18n.t("api.errors.current_password_invalid") ] }) unless Current.user.authenticate(params[:current_password])
+        return passkey_limit_reached if passkey_limit_reached?
 
         Current.user.update!(webauthn_user_handle: WebAuthn.generate_user_id) if Current.user.webauthn_user_handle.blank?
         options = WebAuthn::Credential.options_for_create(
@@ -26,14 +27,19 @@ module Api
 
         credential = WebAuthn::Credential.from_create(params.require(:credential).to_unsafe_h)
         credential.verify(payload.fetch("challenge"))
-        stored = Current.user.webauthn_credentials.create!(
-          external_id: credential.id,
-          public_key: credential.public_key,
-          sign_count: credential.sign_count,
-          nickname: params[:nickname].presence || I18n.t("api.passkeys.default_nickname"),
-          transports: Array(params.dig(:credential, :response, :transports)).map(&:to_s).intersection(%w[usb nfc ble internal hybrid]),
-          authenticator_attachment: params.dig(:credential, :authenticatorAttachment).to_s.presence
-        )
+        stored = nil
+        Current.user.with_lock do
+          return passkey_limit_reached if passkey_limit_reached?
+
+          stored = Current.user.webauthn_credentials.create!(
+            external_id: credential.id,
+            public_key: credential.public_key,
+            sign_count: credential.sign_count,
+            nickname: params[:nickname].presence || I18n.t("api.passkeys.default_nickname"),
+            transports: Array(params.dig(:credential, :response, :transports)).map(&:to_s).intersection(%w[usb nfc ble internal hybrid]),
+            authenticator_attachment: params.dig(:credential, :authenticatorAttachment).to_s.presence
+          )
+        end
         AuditLog.record!(action: "account.passkey_added", actor: Current.user, auditable: Current.user, request: request)
         SecurityNotificationMailer.with(user: Current.user, security_event: "passkey_added").security_setting_changed.deliver_later
         render json: { passkey: stored.as_json(only: %i[id nickname transports authenticator_attachment last_used_at created_at]) }, status: :created
@@ -73,6 +79,14 @@ module Api
 
         def invalid_passkey
           render_api_error("PASSKEY_INVALID", status: :unprocessable_content)
+        end
+
+        def passkey_limit_reached?
+          Current.user.webauthn_credentials.count >= Integer(ENV.fetch("MAX_PASSKEYS_PER_USER", "10"), 10).clamp(1, 50)
+        end
+
+        def passkey_limit_reached
+          render_api_error("PASSKEY_LIMIT_REACHED", status: :unprocessable_content)
         end
     end
   end

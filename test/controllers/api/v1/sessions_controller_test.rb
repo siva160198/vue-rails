@@ -8,6 +8,25 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_api_error("WEBAUTHN_DISABLED")
   end
 
+  test "passkey options do not reveal whether an email has a credential" do
+    users(:one).webauthn_credentials.create!(external_id: "known-credential", public_key: "public-key", nickname: "Key")
+    previous_rp = ENV["WEBAUTHN_RP_ID"]
+    previous_origin = ENV["WEBAUTHN_ORIGIN"]
+    ENV["WEBAUTHN_RP_ID"] = "www.example.com"
+    ENV["WEBAUTHN_ORIGIN"] = "https://www.example.com"
+
+    post passkey_options_api_v1_session_url, params: { email_address: users(:one).email_address }, as: :json
+    existing_shape = response.parsed_body.keys.sort
+    assert_response :success
+
+    post passkey_options_api_v1_session_url, params: { email_address: "missing@example.com" }, as: :json
+    assert_response :success
+    assert_equal existing_shape, response.parsed_body.keys.sort
+  ensure
+    ENV["WEBAUTHN_RP_ID"] = previous_rp
+    ENV["WEBAUTHN_ORIGIN"] = previous_origin
+  end
+
   setup do
     ActionMailer::Base.deliveries.clear
   end

@@ -43,7 +43,10 @@ en:
       time: "Time"
       warning: "If this was not you, revoke the session from Active devices immediately and change your password."
   api:
+    jobs:
+      failure_redacted: "Error details are hidden. Use internal logs with the request ID for investigation."
     errors:
+      payload_too_large: "The request exceeds the allowed size."
       avatar_missing: "Choose a profile photo first."
       avatar_too_large: "The source photo must be 10 MB or smaller."
       avatar_dimensions_too_large: "The photo dimensions are too large."
@@ -54,6 +57,7 @@ en:
       invalid_csrf_token: "The security session is invalid. Reload the page and try again."
       resource_not_found: "The requested resource was not found."
       invalid_json: "The request contains invalid JSON."
+      invalid_pagination_cursor: "The pagination cursor is invalid or expired. Reload the data and try again."
       internal_server_error: "The server encountered a problem. Try again later."
       service_unavailable: "The service is not ready. Try again shortly."
       validation_failed: "The provided data is invalid."
@@ -61,6 +65,7 @@ en:
       registration_rate_limited: "Too many registrations. Try again later."
       role_rate_limited: "Too many role changes. Try again shortly."
       user_rate_limited: "Too many user changes. Try again shortly."
+      passkey_limit_reached: "This account has reached its passkey limit. Remove an old passkey before adding another."
       email_already_registered: "The email address is already registered."
       account_inactive: "Your account is inactive. Please contact %{email}."
       invalid_credentials: "Invalid email or password."

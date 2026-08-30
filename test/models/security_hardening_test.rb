@@ -28,6 +28,16 @@ class SecurityHardeningTest < ActiveSupport::TestCase
     assert AuditLog.valid_chain?
   end
 
+  test "audit entries use partitioned integrity chains" do
+    first = AuditLog.record!(action: "security.first", actor: users(:one))
+    second = AuditLog.record!(action: "security.second", actor: users(:two))
+
+    assert_match(/\Ashard-\d+\z/, first.chain_key)
+    assert_match(/\Ashard-\d+\z/, second.chain_key)
+    assert_nil first.previous_digest
+    assert AuditLog.valid_chain?
+  end
+
   test "admin approvals require a different approver and expire safely" do
     approval = AdminApproval.new(requester: users(:one), action_key: "admin.test", payload_digest: "digest", expires_at: 10.minutes.from_now)
     assert_not approval.approved?

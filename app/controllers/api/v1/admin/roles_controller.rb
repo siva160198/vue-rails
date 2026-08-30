@@ -24,7 +24,9 @@ module Api
             sortable_columns: %w[name key description created_at],
             default_sort: :name
           )
-          render json: { roles: roles.map { |role| role_json(role) }, permissions: permissions_json, pagination: pagination }
+          role_records = roles.includes(:permissions).to_a
+          user_counts = User.where(role: role_records.map(&:key)).group(:role).count
+          render json: { roles: role_records.map { |role| role_json(role, users_count: user_counts.fetch(role.key, 0)) }, permissions: permissions_json, pagination: pagination }
         end
 
         def create
@@ -86,10 +88,10 @@ module Api
             params.permit(:key, :name, :description, permission_keys: [])
           end
 
-          def role_json(role)
+          def role_json(role, users_count: nil)
             role.as_json(only: %i[id key name description system created_at]).merge(
-              users_count: role.users.size,
-              permission_keys: role.permissions.order(:key).pluck(:key)
+              users_count: users_count.nil? ? role.users.count : users_count,
+              permission_keys: role.permissions.sort_by(&:key).map(&:key)
             )
           end
 

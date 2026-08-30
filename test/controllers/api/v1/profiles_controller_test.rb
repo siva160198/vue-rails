@@ -13,6 +13,11 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert profile.key?("avatar_url")
   end
 
+  test "does not expose generated Active Storage upload and blob routes" do
+    route_paths = Rails.application.routes.routes.map { |route| route.path.spec.to_s }
+    assert route_paths.none? { |path| path.include?("active_storage") || path.include?("/rails/active_storage") }
+  end
+
   test "uploads and removes a validated avatar" do
     avatar = fixture_file_upload(Rails.root.join("public/icon.png"), "image/png")
 
@@ -25,6 +30,15 @@ class Api::V1::ProfilesControllerTest < ActionDispatch::IntegrationTest
     assert_operator decoded.width, :<=, 512
     assert_equal decoded.width, decoded.height
 
+    get avatar_api_v1_profile_url
+    assert_response :success
+    assert_equal "image/avif", response.media_type
+
+    delete api_v1_session_url, as: :json
+    get avatar_api_v1_profile_url
+    assert_response :unauthorized
+
+    sign_in_as users(:one)
     delete api_v1_profile_url, as: :json
     assert_response :no_content
     assert_not users(:one).reload.avatar.attached?

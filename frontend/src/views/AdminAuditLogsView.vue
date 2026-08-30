@@ -38,7 +38,12 @@ const columns = computed(() => [
         :loading="loading"
         :empty-text="t('audit.empty')"
         server-mode
+        cursor-mode
         :total="pagination.total"
+        :next-cursor="pagination.next_cursor || ''"
+        :previous-cursor="pagination.previous_cursor || ''"
+        :has-next="pagination.has_next"
+        :has-previous="pagination.has_previous"
         @request="loadLogs"
         ><template #cell-action="{ item }"
           ><span class="font-medium dark:text-white">{{

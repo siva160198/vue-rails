@@ -29,8 +29,12 @@ paths:
       tags: [System]
       security: []
       operationId: getReadiness
+      description: Internal dependency probe. Production callers must provide the secret readiness token.
+      parameters: [{ $ref: "#/components/parameters/ReadinessToken" }]
       responses:
         "200": { description: Dependencies ready, content: { application/json: { schema: { $ref: "#/components/schemas/Readiness" } } } }
+        "404": { $ref: "#/components/responses/ApiError" }
+        "429": { $ref: "#/components/responses/ApiError" }
         "503": { $ref: "#/components/responses/ApiError" }
   /api/v1/csrf:
     get:
@@ -57,7 +61,7 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/RegistrationRequest" } } } }
       responses:
         "201": { description: Account created; OTP required, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
-        "202": { description: Existing unverified account; OTP required, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
+        "202": { description: Existing unverified account with a valid password; active challenge reused during cooldown, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
         "422": { $ref: "#/components/responses/ApiError" }
         "429": { $ref: "#/components/responses/ApiError" }
   /api/v1/email_revert:
@@ -201,18 +205,28 @@ paths:
         content:
           application/json: { schema: { $ref: "#/components/schemas/ProfileUpdateRequest" } }
           multipart/form-data: { schema: { type: object, required: [avatar], properties: { avatar: { type: string, format: binary } } } }
-      responses: { "200": { description: Profile information or avatar updated, content: { application/json: { schema: { oneOf: [{ $ref: "#/components/schemas/ProfileMutationResponse" }, { $ref: "#/components/schemas/AvatarMutationResponse" }] } } } }, "422": { $ref: "#/components/responses/ApiError" } }
+      responses: { "200": { description: Profile information or avatar updated, content: { application/json: { schema: { oneOf: [{ $ref: "#/components/schemas/ProfileMutationResponse" }, { $ref: "#/components/schemas/AvatarMutationResponse" }] } } } }, "413": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
     delete:
       tags: [Account]
       operationId: deleteProfileAvatar
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
       responses: { "204": { description: Avatar removed } }
+  /api/v1/profile/avatar:
+    get:
+      tags: [Account]
+      operationId: getOwnProfileAvatar
+      description: Returns only the authenticated user's processed AVIF avatar. Active Storage service routes are not public.
+      responses:
+        "200": { description: Private profile avatar, content: { image/avif: { schema: { type: string, format: binary } } } }
+        "401": { $ref: "#/components/responses/ApiError" }
+        "403": { $ref: "#/components/responses/ApiError" }
+        "404": { $ref: "#/components/responses/ApiError" }
   /api/v1/account_security:
     get:
       tags: [Account]
       operationId: getAccountSecurity
-      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }]
-      responses: { "200": { description: Own security history and passkeys, content: { application/json: { schema: { $ref: "#/components/schemas/AccountSecurityResponse" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "403": { $ref: "#/components/responses/ApiError" } }
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }, { $ref: "#/components/parameters/IncludeTotal" }]
+      responses: { "200": { description: Own security history and passkeys with cursor-paginated events, content: { application/json: { schema: { $ref: "#/components/schemas/AccountSecurityResponse" } } } }, "400": { $ref: "#/components/responses/ApiError" }, "401": { $ref: "#/components/responses/ApiError" }, "403": { $ref: "#/components/responses/ApiError" } }
   /api/v1/account_security/password:
     patch:
       tags: [Account]
@@ -252,29 +266,29 @@ paths:
     post:
       tags: [Account]
       operationId: requestTotpEnrollment
-      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [current_password], properties: { current_password: { type: string, format: password } } } } } }
-      responses: { "200": { description: TOTP enrollment secret, content: { application/json: { schema: { type: object, required: [secret, provisioning_uri], properties: { secret: { type: string }, provisioning_uri: { type: string } } } } } }, "401": { $ref: "#/components/responses/ApiError" } }
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
+      description: Creates an encrypted pending secret after purpose-bound step-up. An existing active TOTP secret remains valid until verification succeeds.
+      responses: { "200": { description: Pending TOTP enrollment secret, content: { application/json: { schema: { type: object, required: [secret, provisioning_uri], properties: { secret: { type: string }, provisioning_uri: { type: string } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
   /api/v1/account_security/verify_totp:
     post:
       tags: [Account]
       operationId: verifyTotpEnrollment
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [code], properties: { code: { type: string, pattern: "^[0-9]{6}$" } } } } } }
-      responses: { "200": { description: TOTP enabled, content: { application/json: { schema: { type: object, required: [totp_enabled], properties: { totp_enabled: { const: true } } } } } }, "401": { $ref: "#/components/responses/ApiError" } }
+      responses: { "200": { description: Pending secret promoted and TOTP enabled, content: { application/json: { schema: { type: object, required: [totp_enabled], properties: { totp_enabled: { const: true } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
   /api/v1/account_security/disable_totp:
     delete:
       tags: [Account]
       operationId: disableTotp
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
-      responses: { "200": { description: TOTP disabled, content: { application/json: { schema: { type: object, required: [totp_enabled], properties: { totp_enabled: { const: false } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
+      responses: { "200": { description: TOTP disabled, content: { application/json: { schema: { type: object, required: [totp_enabled], properties: { totp_enabled: { const: false } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
   /api/v1/passkeys/options:
     post:
       tags: [Account]
       operationId: getPasskeyRegistrationOptions
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
       requestBody: { required: true, content: { application/json: { schema: { type: object, required: [current_password], properties: { current_password: { type: string, format: password } } } } } }
-      responses: { "200": { description: WebAuthn registration options, content: { application/json: { schema: { $ref: "#/components/schemas/PasskeyOptionsResponse" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
+      responses: { "200": { description: WebAuthn registration options, content: { application/json: { schema: { $ref: "#/components/schemas/PasskeyOptionsResponse" } } } }, "401": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError", description: Passkeys disabled or the per-user limit was reached } }
   /api/v1/passkeys:
     post:
       tags: [Account]
@@ -308,9 +322,10 @@ paths:
     get:
       tags: [Admin]
       operationId: listUsers
-      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }]
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }, { $ref: "#/components/parameters/IncludeTotal" }]
       responses:
-        "200": { description: Paginated users, content: { application/json: { schema: { type: object, required: [users, roles, pagination], properties: { users: { type: array, items: { $ref: "#/components/schemas/User" } }, roles: { type: array, items: { $ref: "#/components/schemas/RoleOption" } }, pagination: { $ref: "#/components/schemas/Pagination" } } } } } }
+        "200": { description: Cursor-paginated users, content: { application/json: { schema: { type: object, required: [users, roles, pagination], properties: { users: { type: array, items: { $ref: "#/components/schemas/User" } }, roles: { type: array, items: { $ref: "#/components/schemas/RoleOption" } }, pagination: { $ref: "#/components/schemas/CursorPagination" } } } } } }
+        "400": { $ref: "#/components/responses/ApiError" }
         "403": { $ref: "#/components/responses/ApiError" }
   /api/v1/admin/users/{id}:
     get: { tags: [Admin], operationId: getUser, parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: User detail, content: { application/json: { schema: { $ref: "#/components/schemas/UserDetailResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "404": { $ref: "#/components/responses/ApiError" } } }
@@ -333,7 +348,7 @@ paths:
     patch: { tags: [Admin], operationId: updateRole, parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }], requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/RoleWriteRequest" } } } }, responses: { "200": { description: Updated role, content: { application/json: { schema: { $ref: "#/components/schemas/RoleResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } } }
     delete: { tags: [Admin], operationId: deleteRole, parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }], responses: { "204": { description: Role deleted }, "403": { $ref: "#/components/responses/ApiError" } } }
   /api/v1/admin/audit_logs:
-    get: { tags: [Admin], operationId: listAuditLogs, parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }], responses: { "200": { description: Paginated audit logs, content: { application/json: { schema: { $ref: "#/components/schemas/AuditLogListResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" } } }
+    get: { tags: [Admin], operationId: listAuditLogs, parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }, { $ref: "#/components/parameters/IncludeTotal" }], responses: { "200": { description: Cursor-paginated audit logs, content: { application/json: { schema: { $ref: "#/components/schemas/AuditLogListResponse" } } } }, "400": { $ref: "#/components/responses/ApiError" }, "403": { $ref: "#/components/responses/ApiError" } } }
   /api/v1/admin/approvals:
     get:
       tags: [Admin]
@@ -350,8 +365,8 @@ paths:
     get:
       tags: [Admin]
       operationId: listFailedJobs
-      parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }]
-      responses: { "200": { description: Queue metrics and failed jobs, content: { application/json: { schema: { $ref: "#/components/schemas/JobListResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" } }
+      parameters: [{ $ref: "#/components/parameters/Cursor" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }, { $ref: "#/components/parameters/IncludeTotal" }]
+      responses: { "200": { description: Queue metrics and cursor-paginated failed jobs, content: { application/json: { schema: { $ref: "#/components/schemas/JobListResponse" } } } }, "400": { $ref: "#/components/responses/ApiError" }, "403": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/jobs/{id}:
     delete: { tags: [Admin], operationId: discardFailedJob, parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }], responses: { "204": { description: Job discarded }, "403": { $ref: "#/components/responses/ApiError" }, "404": { $ref: "#/components/responses/ApiError" } } }
   /api/v1/admin/jobs/{id}/retry:
@@ -370,10 +385,13 @@ components:
       description: Signed HTTP-only SameSite=Lax cookie created after successful OTP verification.
   parameters:
     CsrfToken: { in: header, name: X-CSRF-Token, required: true, schema: { type: string } }
+    ReadinessToken: { in: header, name: X-Readiness-Token, required: true, schema: { type: string, minLength: 32 }, description: Internal production probe secret; never expose it to browser code. }
     StepUpToken: { in: header, name: X-Step-Up-Token, required: true, schema: { type: string }, description: Short-lived purpose-bound token returned by step-up verification. }
     Id: { in: path, name: id, required: true, schema: { type: integer, format: int64 } }
     Uuid: { in: path, name: id, required: true, schema: { type: string, format: uuid } }
     Page: { in: query, name: page, schema: { type: integer, minimum: 1, default: 1 } }
+    Cursor: { in: query, name: cursor, schema: { type: string }, description: Opaque signed keyset cursor returned by the previous response. It is bound to search and sorting options. }
+    IncludeTotal: { in: query, name: include_total, schema: { type: boolean, default: false }, description: Requests an exact count cached briefly; omit for the lowest database cost. }
     PerPage: { in: query, name: per_page, schema: { type: integer, minimum: 5, maximum: 50, default: 10 } }
     Search: { in: query, name: search, schema: { type: string, maxLength: 100 } }
     Sort: { in: query, name: sort, schema: { type: string }, description: Endpoint-specific whitelisted column. }
@@ -402,16 +420,22 @@ components:
         per_page: { type: integer, minimum: 5, maximum: 50 }
         total: { type: integer, minimum: 0 }
         total_pages: { type: integer, minimum: 1 }
+    CursorPagination:
+      type: object
+      required: [per_page, next_cursor, previous_cursor, has_next, has_previous, total]
+      properties:
+        per_page: { type: integer, minimum: 5, maximum: 50 }
+        next_cursor: { type: [string, "null"] }
+        previous_cursor: { type: [string, "null"] }
+        has_next: { type: boolean }
+        has_previous: { type: boolean }
+        total: { type: [integer, "null"], minimum: 0, description: Exact count only when include_total=true. }
     Message: { type: object, required: [message], properties: { message: { type: string } } }
     Readiness:
       type: object
-      required: [status, checks]
+      required: [status]
       properties:
         status: { const: ready }
-        checks:
-          type: object
-          required: [database, queue_database, queue_workers, queue_latency, storage, mail]
-          properties: { database: { type: boolean }, queue_database: { type: boolean }, queue_workers: { type: boolean }, queue_latency: { type: boolean }, storage: { type: boolean }, mail: { type: boolean } }
     LoginRequest:
       type: object
       required: [email_address, password]
@@ -469,7 +493,7 @@ components:
     AccountSecurityResponse:
       type: object
       required: [events, passkeys, passkeys_enabled, totp_enabled, recovery_code_count, pagination]
-      properties: { events: { type: array, items: { $ref: "#/components/schemas/SecurityEvent" } }, passkeys: { type: array, items: { $ref: "#/components/schemas/Passkey" } }, passkeys_enabled: { type: boolean }, totp_enabled: { type: boolean }, recovery_code_count: { type: integer, minimum: 0 }, pagination: { $ref: "#/components/schemas/Pagination" } }
+      properties: { events: { type: array, items: { $ref: "#/components/schemas/SecurityEvent" } }, passkeys: { type: array, items: { $ref: "#/components/schemas/Passkey" } }, passkeys_enabled: { type: boolean }, totp_enabled: { type: boolean }, recovery_code_count: { type: integer, minimum: 0 }, pagination: { $ref: "#/components/schemas/CursorPagination" } }
     AuthenticatedUser:
       type: object
       required: [id, email_address, role, permissions]
@@ -544,11 +568,11 @@ components:
     AuditLogListResponse:
       type: object
       required: [audit_logs, pagination]
-      properties: { audit_logs: { type: array, items: { $ref: "#/components/schemas/AuditLog" } }, pagination: { $ref: "#/components/schemas/Pagination" } }
+      properties: { audit_logs: { type: array, items: { $ref: "#/components/schemas/AuditLog" } }, pagination: { $ref: "#/components/schemas/CursorPagination" } }
     FailedJob:
       type: object
       required: [id, job_id, class_name, queue_name, exception_class, message, created_at]
-      properties: { id: { type: integer }, job_id: { type: integer }, class_name: { type: string }, queue_name: { type: string }, exception_class: { type: string }, message: { type: string }, created_at: { type: string, format: date-time } }
+      properties: { id: { type: integer }, job_id: { type: integer }, class_name: { type: string }, queue_name: { type: string }, exception_class: { type: string }, message: { type: string, description: Localized redaction notice; raw exception messages remain internal. }, created_at: { type: string, format: date-time } }
     QueueMetrics:
       type: object
       required: [ready, scheduled, claimed, failed]
@@ -556,4 +580,4 @@ components:
     JobListResponse:
       type: object
       required: [metrics, failures, pagination]
-      properties: { metrics: { $ref: "#/components/schemas/QueueMetrics" }, failures: { type: array, items: { $ref: "#/components/schemas/FailedJob" } }, pagination: { $ref: "#/components/schemas/Pagination" } }
+      properties: { metrics: { $ref: "#/components/schemas/QueueMetrics" }, failures: { type: array, items: { $ref: "#/components/schemas/FailedJob" } }, pagination: { $ref: "#/components/schemas/CursorPagination" } }

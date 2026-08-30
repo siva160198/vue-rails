@@ -4,7 +4,7 @@ module Api
       class JobsController < ApplicationController
         def index
           authorize :job_monitor
-          failures, pagination = paginate_api(
+          failures, pagination = paginate_cursor_api(
             SolidQueue::FailedExecution.includes(:job),
             search_columns: %w[error],
             sortable_columns: %w[created_at],
@@ -44,7 +44,7 @@ module Api
           end
 
           def failure_json(failure)
-            { id: failure.id, job_id: failure.job_id, class_name: failure.job.class_name, queue_name: failure.job.queue_name, exception_class: failure.exception_class, message: failure.message, created_at: failure.created_at }
+            { id: failure.id, job_id: failure.job_id, class_name: failure.job.class_name, queue_name: failure.job.queue_name, exception_class: failure.exception_class, message: I18n.t("api.jobs.failure_redacted"), created_at: failure.created_at }
           end
 
           def record_action(action, job_id)

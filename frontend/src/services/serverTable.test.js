@@ -23,6 +23,7 @@ describe("useServerTable", () => {
 
     expect(apiFetch).toHaveBeenCalledWith(
       "/api/v1/admin/users?page=2&per_page=5&search=member",
+      { signal: expect.any(AbortSignal) },
     );
     expect(table.items.value).toEqual([{ id: 1 }]);
     expect(table.pagination.value).toEqual({
@@ -30,6 +31,10 @@ describe("useServerTable", () => {
       per_page: 5,
       total: 6,
       total_pages: 2,
+      next_cursor: null,
+      previous_cursor: null,
+      has_next: false,
+      has_previous: false,
     });
 
     table.updateItem(1, { id: 1, active: false });
@@ -66,6 +71,19 @@ describe("useServerTable", () => {
 
     expect(table.items.value).toEqual([{ id: 2 }]);
     expect(table.loading.value).toBe(false);
+    expect(toast.error).not.toHaveBeenCalled();
+  });
+
+  it("aborts the previous in-flight request", async () => {
+    apiFetch.mockImplementation((_url, { signal }) => new Promise((_resolve, reject) => {
+      signal.addEventListener("abort", () => reject(Object.assign(new Error("cancelled"), { code: "REQUEST_ABORTED" })), { once: true });
+    }));
+    const table = useServerTable({ endpoint: "/users", collectionKey: "users" });
+
+    const first = table.load({ search: "old" });
+    table.load({ search: "new" });
+    await first;
+
     expect(toast.error).not.toHaveBeenCalled();
   });
 });

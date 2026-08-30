@@ -8,12 +8,19 @@ module AdminDualControl
       normalized = canonical_security_payload(payload)
       digest = Digest::SHA256.hexdigest(normalized.to_json)
       approval = AdminApproval.active.where(requester: Current.user, action_key: action_key, payload_digest: digest).order(created_at: :desc).first
-      if approval&.approved?
+      consumed = approval&.with_lock do
+        approval.reload
+        next false unless approval.approved?
+
         approval.update!(consumed_at: Time.current)
+        true
+      end
+      if consumed
         AuditLog.record!(action: "admin.approval_consumed", actor: Current.user, metadata: { approval_id: approval.id }, request: request)
         return true
       end
 
+      approval = nil if approval&.consumed_at?
       approval ||= AdminApproval.create!(requester: Current.user, action_key: action_key, payload_digest: digest, payload_summary: normalized, expires_at: AdminApproval::LIFETIME.from_now)
       AuditLog.record!(action: "admin.approval_requested", actor: Current.user, metadata: { approval_id: approval.id, action_key: action_key }, request: request) if approval.previously_new_record?
       render_api_error("SECOND_ADMIN_APPROVAL_REQUIRED", status: :conflict, details: { approval_id: approval.id })

@@ -21,11 +21,10 @@ class LoginProtectionTest < ActiveSupport::TestCase
   end
 
 
-  test "progressive delay is bounded and trusted networks bypass risk" do
+  test "trusted networks bypass risk without blocking a request thread" do
     protection = LoginProtection.new(email_address: "target@example.com", ip_address: "192.0.2.60")
     6.times { LoginAttempt.create!(email_digest: protection.email_digest, ip_address: "192.0.2.60", successful: false) }
-    assert_operator protection.delay_seconds, :>, 0.15
-    assert_operator protection.delay_seconds, :<=, LoginProtection::MAX_DELAY
+    assert_not_respond_to protection, :delay!
 
     previous = ENV["TRUSTED_LOGIN_NETWORKS"]
     ENV["TRUSTED_LOGIN_NETWORKS"] = "192.0.2.0/24"

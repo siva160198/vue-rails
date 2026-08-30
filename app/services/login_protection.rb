@@ -8,10 +8,9 @@ class LoginProtection
   IP_FAILURE_LIMIT = 20
   IP_DISTINCT_ACCOUNT_LIMIT = 5
   LOCK_DURATION = 15.minutes
-  MAX_DELAY = 2.seconds
 
   def initialize(email_address:, ip_address:, user_agent: nil, captcha_enabled: CaptchaVerifier.enabled?)
-    @email_digest = Digest::SHA256.hexdigest(email_address.to_s.strip.downcase)
+    @email_digest = EmailPrivacyDigest.call(email_address)
     @ip_address = ip_address.to_s
     @user_agent = user_agent.to_s
     @device_digest = Digest::SHA256.hexdigest(@user_agent)
@@ -50,16 +49,6 @@ class LoginProtection
   def hard_locked?(user, captcha_verified: false)
     locked_signal = user&.login_locked? || recent_account_failures >= HARD_LOCK_THRESHOLD
     !trusted_network? && !captcha_verified && locked_signal && risk_score(user) >= HARD_LOCK_RISK
-  end
-
-  def delay!
-    return if trusted_network?
-
-    sleep(delay_seconds) if delay_seconds.positive? && !Rails.env.test?
-  end
-
-  def delay_seconds
-    [ 0.15 * (2**[ recent_account_failures, 4 ].min), MAX_DELAY ].min
   end
 
   def record_failure!(user = nil, captcha_verified: false)

@@ -7,7 +7,8 @@ class ProductionConfigurationTest < ActiveSupport::TestCase
     "DATABASE_URL" => "postgresql://user:password@db.acme.test/app_production",
     "MAILER_FROM" => "no-reply@acme.test",
     "SUPPORT_EMAIL" => "support@acme.test",
-    "SMTP_ADDRESS" => "smtp.acme.test"
+    "SMTP_ADDRESS" => "smtp.acme.test",
+    "READINESS_TOKEN" => "a-secure-readiness-token-with-32-bytes"
   }.freeze
 
   test "accepts complete production configuration" do
@@ -35,6 +36,27 @@ class ProductionConfigurationTest < ActiveSupport::TestCase
 
     assert_includes error.message, "MAX_ACTIVE_SESSIONS"
     assert_includes error.message, "S3_CONFIGURATION"
+  end
+
+  test "rejects an unsafe passkey count limit" do
+    error = assert_raises(RuntimeError) do
+      ProductionConfiguration.validate!(VALID_ENVIRONMENT.merge("MAX_PASSKEYS_PER_USER" => "1000"))
+    end
+    assert_includes error.message, "MAX_PASSKEYS_PER_USER"
+  end
+
+  test "rejects a short readiness token and unsafe execution timeouts" do
+    error = assert_raises(RuntimeError) do
+      ProductionConfiguration.validate!(VALID_ENVIRONMENT.merge(
+        "READINESS_TOKEN" => "short",
+        "RACK_TIMEOUT_SERVICE_TIMEOUT" => "120",
+        "DATABASE_STATEMENT_TIMEOUT_MS" => "50"
+      ))
+    end
+
+    assert_includes error.message, "READINESS_TOKEN"
+    assert_includes error.message, "RACK_TIMEOUT_SERVICE_TIMEOUT"
+    assert_includes error.message, "DATABASE_STATEMENT_TIMEOUT_MS"
   end
 
   test "accepts disabled passkeys and rejects partial or insecure WebAuthn configuration" do
@@ -75,5 +97,13 @@ class ProductionConfigurationTest < ActiveSupport::TestCase
       "TURNSTILE_SECRET_KEY" => "secret-key",
       "TRUSTED_LOGIN_NETWORKS" => "10.0.0.0/8,2001:db8::/32"
     ))
+  end
+
+
+  test "accepts only an HTTPS origin without path or credentials for cross-origin frontend access" do
+    assert ProductionConfiguration.validate!(VALID_ENVIRONMENT.merge("FRONTEND_ORIGIN" => "https://frontend.acme.test"))
+    assert_raises(RuntimeError) { ProductionConfiguration.validate!(VALID_ENVIRONMENT.merge("FRONTEND_ORIGIN" => "http://frontend.acme.test")) }
+    assert_raises(RuntimeError) { ProductionConfiguration.validate!(VALID_ENVIRONMENT.merge("FRONTEND_ORIGIN" => "https://frontend.acme.test/app")) }
+    assert_raises(RuntimeError) { ProductionConfiguration.validate!(VALID_ENVIRONMENT.merge("FRONTEND_ORIGIN" => "https://user:pass@frontend.acme.test")) }
   end
 end

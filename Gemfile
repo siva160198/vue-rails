@@ -18,6 +18,9 @@ gem "stimulus-rails"
 gem "jbuilder"
 # Allow the Vue frontend to call this JSON API from another origin.
 gem "rack-cors"
+# Bound application request execution time so slow clients and expensive work cannot
+# occupy a Puma thread indefinitely.
+gem "rack-timeout"
 # Authentication uses Rails' native generator; authorization uses explicit policies.
 gem "bcrypt", "~> 3.1.7"
 gem "pundit"

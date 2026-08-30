@@ -44,8 +44,15 @@ env:
     - SMTP_USERNAME
     - SMTP_PASSWORD
     - SENTRY_DSN
+    - READINESS_TOKEN
   clear:
     SOLID_QUEUE_IN_PUMA: false
+    # Thruster rejects large and slow request bodies before they consume Rails/Puma.
+    MAX_REQUEST_BODY: 12582912
+    HTTP_READ_TIMEOUT: 15
+    HTTP_WRITE_TIMEOUT: 30
+    HTTP_IDLE_TIMEOUT: 30
+    RACK_TIMEOUT_SERVICE_TIMEOUT: 15
 
     # Set number of processes dedicated to Solid Queue (default: 1)
     # JOB_CONCURRENCY: 3

@@ -1,7 +1,7 @@
 module Api
   module V1
     class StepUpsController < ApplicationController
-      PURPOSES = %w[account_security password_change email_change recovery_codes passkey_delete sessions_revoke admin_user_update admin_role_change admin_approval totp_disable].freeze
+      PURPOSES = %w[account_security password_change email_change recovery_codes passkey_delete sessions_revoke admin_user_update admin_role_change admin_approval totp_enroll totp_disable].freeze
 
       rate_limit to: 10, within: 5.minutes, by: -> { Current.user.id },
         with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }

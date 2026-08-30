@@ -4,7 +4,7 @@ module Api
       class AuditLogsController < ApplicationController
         def index
           authorize AuditLog
-          logs, pagination = paginate_api(
+          logs, pagination = paginate_cursor_api(
             policy_scope(AuditLog).includes(:actor),
             search_columns: %w[action auditable_type ip_address],
             sortable_columns: %w[action auditable_type ip_address created_at],

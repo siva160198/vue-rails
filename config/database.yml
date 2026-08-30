@@ -2,6 +2,9 @@ default: &default
   adapter: postgresql
   encoding: unicode
   max_connections: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %>
+  variables:
+    statement_timeout: <%= Integer(ENV.fetch("DATABASE_STATEMENT_TIMEOUT_MS", "10000"), 10) %>
+    lock_timeout: <%= Integer(ENV.fetch("DATABASE_LOCK_TIMEOUT_MS", "3000"), 10) %>
 
 development:
   primary:

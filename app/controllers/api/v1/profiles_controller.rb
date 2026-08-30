@@ -1,9 +1,25 @@
 module Api
   module V1
     class ProfilesController < ApplicationController
+      rate_limit to: 5, within: 10.minutes, only: :update,
+        by: -> { "avatar-user:#{Current.user.id}" },
+        with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) },
+        name: "profile-avatar-user", if: -> { request.media_type == "multipart/form-data" }
+      rate_limit to: 20, within: 1.hour, only: :update,
+        by: -> { "avatar-ip:#{request.remote_ip}" },
+        with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) },
+        name: "profile-avatar-ip", if: -> { request.media_type == "multipart/form-data" }
       def show
         authorize :profile
         render json: { profile: profile_json }
+      end
+
+      def avatar
+        authorize :profile, :show?
+        return render_api_error("RESOURCE_NOT_FOUND", status: :not_found) unless Current.user.avatar.attached?
+
+        expires_in 5.minutes, public: false
+        send_data Current.user.avatar.download, type: Current.user.avatar.content_type, disposition: :inline, filename: "avatar.avif"
       end
 
       def update
@@ -36,7 +52,7 @@ module Api
           Current.user.avatar.attach(io: processed.io, filename: processed.filename, content_type: processed.content_type)
           Current.user.save!
           AuditLog.record!(action: "profile.avatar_updated", actor: Current.user, auditable: Current.user, metadata: { bytes: processed.byte_size, format: "avif" }, request: request)
-          render json: { avatar_url: rails_blob_path(Current.user.avatar, only_path: true), byte_size: processed.byte_size, content_type: processed.content_type }
+          render json: { avatar_url: avatar_url(Current.user), byte_size: processed.byte_size, content_type: processed.content_type }
         rescue AvatarProcessor::InvalidImage => error
           message = I18n.t("api.errors.#{error.message}", default: I18n.t("api.errors.avatar_invalid"))
           render_api_error("INVALID_AVATAR", message: message, details: { avatar: [ message ] }, status: :unprocessable_content)
@@ -48,8 +64,12 @@ module Api
 
         def profile_json
           Current.user.as_json(only: %i[id email_address role active email_verified_at created_at first_name last_name phone]).merge(
-            avatar_url: Current.user.avatar.attached? ? rails_blob_path(Current.user.avatar, only_path: true) : nil
+            avatar_url: avatar_url(Current.user)
           )
+        end
+
+        def avatar_url(user)
+          user.avatar.attached? ? "/api/v1/profile/avatar?v=#{user.avatar.blob_id}" : nil
         end
     end
   end

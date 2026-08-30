@@ -43,6 +43,10 @@ default.
 - Every frontend API request carries a generated `X-Request-ID`. Preserve and expose
   it through proxies/CORS, attach the response ID to API errors, and include it in
   monitoring context. Never log passwords, email, OTP, reset tokens, cookies, or bodies.
+- Every frontend API request must have a bounded timeout and accept a caller-provided
+  `AbortSignal`. Deduplicate concurrent CSRF bootstrap requests. `useServerTable()` must
+  abort its previous in-flight request, silently ignore intentional cancellation, surface
+  real timeout failures through the global toast, and always release loading state.
 - Frontend authentication state must go through the singleton `useAuth()` composable in
   `frontend/src/services/auth.js`. Do not call `currentUser()` independently from routes,
   layouts, or pages, duplicate logout handlers, or inspect permission arrays directly.
@@ -54,6 +58,13 @@ default.
   standardized pagination state, response hooks, row replacement/removal, error toasts,
   and stale-response protection. Do not duplicate table request/loading/total logic in
   page components. Business-specific payload transformations remain at the call site.
+- Growing collections such as users, audit logs, login history, and failed jobs must use
+  signed opaque keyset cursors through `paginate_cursor_api`; never reintroduce OFFSET or
+  an unconditional `COUNT(*)` there. Bind cursors to search/sort/direction, use a stable
+  `id` tie-breaker, preserve microsecond timestamp precision, support forward/backward
+  traversal, and reject tampered/expired/context-mismatched cursors with the standard
+  `INVALID_PAGINATION_CURSOR` error. Exact totals are opt-in with `include_total=true`
+  and briefly cached. Cursor DataTables show Previous/Next rather than fake total pages.
 - Every new user-facing feature must ship Indonesian and English translations together.
   Vue strings must use `t()` from `frontend/src/services/i18n.js`, and Rails responses
   must use matching locale keys under both `config/locales/id.yml` and `en.yml`;
@@ -120,6 +131,9 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 
 ## Implementation Conventions
 
+- Before executing any requested code or UI change, first explain the intended scope,
+  behavior, UX, and relevant tradeoffs to the user, then wait for explicit approval.
+  After approval, proceed without asking again unless the scope changes materially.
 - Never run `git push` unless the user explicitly asks to push in the current request.
   Completing a code change does not imply permission to push. Leave changes in the
   working tree unless the user also explicitly requests a commit.
@@ -128,7 +142,9 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   trace sampling explicit and conservative. The app must work with monitoring disabled;
   production Rails logs remain structured JSON with request ID.
 - Keep `/up` as a dependency-free liveness probe and `/api/v1/readiness` as the
-  dependency probe for PostgreSQL and Solid Queue storage. Add every new mandatory
+  internal dependency probe for PostgreSQL and Solid Queue storage. Production probes
+  must send the secret `X-Readiness-Token`; keep the endpoint rate-limited and cache its
+  expensive checks briefly so public traffic cannot amplify datastore or provider load. Add every new mandatory
   runtime dependency to readiness with success/failure tests without exposing internals.
 - Production boot validates required environment variables and rejects placeholder or
   insecure values, except during `SECRET_KEY_BASE_DUMMY` image compilation. Update
@@ -194,6 +210,21 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   model/server, use multipart `FormData` without forcing a JSON Content-Type, authorize
   ownership, audit mutations, and support local plus environment-configured S3-compatible
   storage. Never trust the browser filename or MIME declaration alone.
+- Keep generated Active Storage service/direct-upload routes disabled unless a feature
+  explicitly supplies authentication, authorization, rate limiting, request-size
+  enforcement, and ownership tests. Serve private avatars through the authenticated
+  profile API; never expose reusable signed blob URLs as profile data.
+- Enforce `Content-Length` before parameter parsing: ordinary API bodies use the small
+  JSON allowance and profile multipart uses the bounded avatar allowance. Also count
+  bytes read from `rack.input` so missing or chunked `Content-Length` cannot bypass the
+  limit. The edge proxy must reject oversized bodies before Rails. Bound request,
+  database-statement, lock, malware-scan, and image-processing execution time. Return
+  standard `PAYLOAD_TOO_LARGE` 413.
+- Profile-photo selection must open the lazy TailAdmin crop editor before upload. Keep a
+  1:1 crop with drag, zoom, 90-degree rotation, reset, and circular avatar guidance; show
+  loading and disable actions during processing. Browser cropping is only UX—the server
+  remains authoritative for MIME/size validation, metadata stripping, resize, and AVIF
+  encoding to at most 50 KB.
 - New authentication sessions must enforce `MAX_ACTIVE_SESSIONS`, store IP/user-agent,
   notify the account by email, and be user-revocable. Record successful, failed, revoked,
   and password-change events without storing plaintext credentials, OTP/token values, or
@@ -208,6 +239,21 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   never reveal account existence through early failure responses, and audit blocked
   attempts without credentials. Retain login-attempt records only for the bounded
   operational window.
+- Login and registration must combine per-IP, normalized-account-digest, and bounded
+  global rate limits backed by the shared Rails cache. Never implement progressive
+  backoff with `sleep` inside a web request because it consumes Puma threads; express
+  retry timing through rate limits, CAPTCHA, and `429` responses instead.
+- Audit integrity chains must be partitioned across bounded deterministic shards and
+  lock only their own PostgreSQL advisory key. Preserve compatibility for the legacy
+  chain, truncate attacker-controlled request metadata, and never restore a single
+  application-wide audit lock.
+- Case-insensitive contains-search on growing PostgreSQL tables requires reviewed
+  `pg_trgm` GIN indexes; JSON metadata lookups require matching partial expression
+  indexes. Server table pages must preload associations or use grouped counts instead
+  of per-row queries.
+- Every retention scope must delete in bounded batches. Purge unattached Active Storage
+  blobs only after a grace period and through `purge_later`, so storage deletion remains
+  asynchronous and fresh in-flight uploads are preserved.
 - Adaptive lockout must resist account-targeted denial of service: use a bounded
   progressive delay, combine account state with IP/distinct-digest/device familiarity,
   and reserve hard lock for repeated high-risk failures. A valid optional CAPTCHA must
@@ -240,6 +286,28 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   secrets encrypted at rest, never return them after enrollment, require a verified code
   before activation, and prevent roles listed in `MFA_REQUIRED_ROLES` from removing their
   final enrolled MFA method. Authenticator codes may satisfy an email step-up challenge.
+- Bound passkeys per account with `MAX_PASSKEYS_PER_USER` and enforce the limit again
+  while holding the user row lock during credential creation. Admin approvals must be
+  approved and consumed atomically under row locks with status/expiry rechecked inside
+  the lock; never rely on a pre-lock controller query for single-use security state.
+- Privacy-preserving login/account keys must use a server-keyed HMAC over normalized email,
+  not raw SHA-256. During digest migration, read both keyed and legacy values only for the
+  bounded retention window; all new writes and rate-limit keys use HMAC exclusively.
+- TOTP replacement requires purpose-bound step-up and an encrypted pending secret. Never
+  overwrite or disable the active secret until the pending code is verified; request,
+  verify, and disable actions all require per-user rate limiting.
+- Consume recovery codes while holding a user row lock and atomically remove the matched
+  digest. Active TOTP verification must atomically persist the last accepted RFC 6238
+  counter and reject reuse, including reuse through a different login or step-up flow.
+- CPU-heavy authenticated operations such as avatar scan/resize/AVIF encoding require
+  both per-user and per-IP rate limits plus bounded processing time; client-side cropping
+  never replaces these server-side availability controls.
+- Public status/readiness responses never expose database names, adapters, dependency
+  names, or per-component failures. Failed-job APIs never return raw exception messages.
+  Production CORS origins must be explicit HTTPS origins without paths or credentials.
+- Existing unverified registration may resend only after authenticating the existing
+  password and must reuse its active challenge during cooldown. Duplicate-email behavior
+  must not reveal verified versus unverified state without valid credentials.
 - Password mutations require at least 12 characters, reject the current password and five
   recent password digests, optionally use the HIBP k-anonymity range API, revoke sessions,
   rotate authentication trust, and queue a "not me" security notification. Never send a

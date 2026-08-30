@@ -49,7 +49,7 @@ async function mutate(failure, action) {
           <p class="text-sm text-gray-500">{{ t(`jobs.${key}`) }}</p><p class="mt-2 text-2xl font-semibold text-gray-900 dark:text-white">{{ metrics[key] }}</p>
         </div>
       </div>
-      <DataTable :items="failures" :columns="columns" :loading="loading" :empty-text="t('jobs.empty')" server-mode :total="pagination.total" @request="load">
+      <DataTable :items="failures" :columns="columns" :loading="loading" :empty-text="t('jobs.empty')" server-mode cursor-mode :total="pagination.total" :next-cursor="pagination.next_cursor || ''" :previous-cursor="pagination.previous_cursor || ''" :has-next="pagination.has_next" :has-previous="pagination.has_previous" @request="load">
         <template #cell-class_name="{ item }"><div><strong class="text-gray-800 dark:text-white">{{ item.class_name }}</strong><p class="text-xs text-gray-500">{{ item.queue_name }} · #{{ item.job_id }}</p></div></template>
         <template #cell-message="{ item }"><p class="line-clamp-2 max-w-xl text-gray-500" :title="item.message">{{ item.exception_class }}: {{ item.message }}</p></template>
         <template #cell-created_at="{ item }"><span class="text-gray-500">{{ new Date(item.created_at).toLocaleString(locale) }}</span></template>

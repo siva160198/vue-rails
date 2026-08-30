@@ -33,10 +33,16 @@ operators must still monitor off-site backup age and perform a provider-level re
 
 ## Deploy and rollback
 
+Before the first release, ensure the PostgreSQL release role may enable `pg_trgm`, or
+have a database administrator enable it. Indexed case-insensitive contains-search depends
+on this extension.
+
 1. Build one immutable image and run its test/security gates.
 2. Take a database backup for destructive or irreversible migrations.
 3. Run `bin/release` once, then switch traffic to web and worker processes from the same image.
-4. Verify `/up`, `/api/v1/readiness`, login, queue latency, email delivery, and error rate.
+4. Verify `/up`, authenticated `/api/v1/readiness` using the internal
+   `X-Readiness-Token`, login, queue latency, email delivery, and error rate. Keep the
+   readiness token out of browser code and rotate it like any other production secret.
 5. Roll application traffic back to the previous image when code fails. Database rollback is
    explicit and reviewed; prefer forward-fix migrations after data has been transformed.
 
@@ -51,6 +57,9 @@ operators must still monitor off-site backup age and perform a provider-level re
 ## Monitoring alerts
 
 Alert on readiness failures, no worker heartbeat, failed jobs, queue latency above five minutes,
+rate-limit saturation, retention backlog, orphaned upload growth, and PostgreSQL lock/statement
+timeouts. Audit writes use deterministic shards; monitor contention per chain rather than assuming
+a single global audit lock.
 mail delivery failures, elevated HTTP 5xx responses, database pool saturation, disk usage, and
 backup age. Sentry captures exceptions when configured; infrastructure metrics and uptime alerts
 belong in the chosen hosting provider.

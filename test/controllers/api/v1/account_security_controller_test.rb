@@ -19,6 +19,17 @@ class Api::V1::AccountSecurityControllerTest < ActionDispatch::IntegrationTest
     assert response.parsed_body.key?("pagination")
   end
 
+  test "keeps legacy and keyed failed-login history visible during digest migration" do
+    keyed = AuditLog.record!(action: "session.login_failed", metadata: { email_digest: EmailPrivacyDigest.call(@user.email_address) })
+    legacy = AuditLog.record!(action: "session.login_failed", metadata: { email_digest: EmailPrivacyDigest.legacy(@user.email_address) })
+
+    get api_v1_account_security_url, as: :json
+
+    ids = response.parsed_body.fetch("events").pluck("id")
+    assert_includes ids, keyed.id
+    assert_includes ids, legacy.id
+  end
+
   test "changes password and revokes every other session" do
     other_session = @user.sessions.create!(ip_address: "127.0.0.2")
 
@@ -48,14 +59,27 @@ class Api::V1::AccountSecurityControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "enrolls and verifies an authenticator app" do
-    post request_totp_api_v1_account_security_url, params: { current_password: "password" }, as: :json
+    old_secret = TotpAuthenticator.generate_secret
+    @user.update!(totp_secret: old_secret, totp_enabled_at: Time.current)
+    post request_totp_api_v1_account_security_url, headers: { "X-Step-Up-Token" => step_up_token_for(@user, "totp_enroll") }, as: :json
     assert_response :success
     assert response.parsed_body.fetch("provisioning_uri").start_with?("otpauth://")
+    assert_equal old_secret, @user.reload.totp_secret
+    assert @user.totp_enabled?
 
-    code = TotpAuthenticator.code(@user.reload.totp_secret)
+    code = TotpAuthenticator.code(@user.reload.pending_totp_secret)
     post verify_totp_api_v1_account_security_url, params: { code: code }, as: :json
     assert_response :success
     assert @user.reload.totp_enabled?
+    assert_nil @user.pending_totp_secret
+    assert_not_equal old_secret, @user.totp_secret
+  end
+
+  test "requires step-up before creating a pending authenticator secret" do
+    post request_totp_api_v1_account_security_url, as: :json
+    assert_response :unauthorized
+    assert_api_error("STEP_UP_REQUIRED")
+    assert_nil @user.reload.pending_totp_secret
   end
 
   test "verifies a new email before changing it" do

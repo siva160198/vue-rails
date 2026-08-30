@@ -18,4 +18,25 @@ class Api::V1::PasskeysControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
     assert_api_error("RESOURCE_NOT_FOUND")
   end
+
+  test "rejects registration options after the per-user passkey limit" do
+    previous_rp = ENV["WEBAUTHN_RP_ID"]
+    previous_origin = ENV["WEBAUTHN_ORIGIN"]
+    previous_limit = ENV["MAX_PASSKEYS_PER_USER"]
+    ENV["WEBAUTHN_RP_ID"] = "localhost"
+    ENV["WEBAUTHN_ORIGIN"] = "https://localhost"
+    ENV["MAX_PASSKEYS_PER_USER"] = "2"
+    2.times do |index|
+      users(:one).webauthn_credentials.create!(external_id: "credential-#{index}", public_key: "key", nickname: "Key #{index}")
+    end
+
+    post options_api_v1_passkeys_url, params: { current_password: "password" }, as: :json
+
+    assert_response :unprocessable_content
+    assert_api_error("PASSKEY_LIMIT_REACHED")
+  ensure
+    ENV["WEBAUTHN_RP_ID"] = previous_rp
+    ENV["WEBAUTHN_ORIGIN"] = previous_origin
+    ENV["MAX_PASSKEYS_PER_USER"] = previous_limit
+  end
 end

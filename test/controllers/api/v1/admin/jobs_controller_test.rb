@@ -10,12 +10,13 @@ class Api::V1::Admin::JobsControllerTest < ActionDispatch::IntegrationTest
   teardown { SolidQueue::Job.where(id: @job.id).delete_all }
 
   test "lists queue metrics and paginated failures" do
-    get api_v1_admin_jobs_url, as: :json
+    get api_v1_admin_jobs_url, params: { include_total: true }, as: :json
 
     assert_response :success
     assert_equal @failure.id, response.parsed_body.dig("failures", 0, "id")
     assert_equal 1, response.parsed_body.dig("pagination", "total")
     assert response.parsed_body.fetch("metrics").key?("failed")
+    assert_not_equal "boom", response.parsed_body.dig("failures", 0, "message")
   end
 
   test "retries a failed job and records an audit" do

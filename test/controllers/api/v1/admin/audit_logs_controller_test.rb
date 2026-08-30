@@ -12,12 +12,12 @@ class Api::V1::Admin::AuditLogsControllerTest < ActionDispatch::IntegrationTest
     )
 
     get api_v1_admin_audit_logs_url,
-      params: { search: "198.51.100.42", page: "invalid", per_page: 1 }, as: :json
+      params: { search: "198.51.100.42", per_page: 1, include_total: true }, as: :json
 
     assert_response :success
     assert_equal [ "security.reviewed" ], response.parsed_body["audit_logs"].pluck("action")
     assert_equal(
-      { "page" => 1, "per_page" => 5, "total" => 1, "total_pages" => 1 },
+      { "per_page" => 5, "next_cursor" => nil, "previous_cursor" => nil, "has_next" => false, "has_previous" => false, "total" => 1 },
       response.parsed_body["pagination"]
     )
   end

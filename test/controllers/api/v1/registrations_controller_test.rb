@@ -43,8 +43,8 @@ class Api::V1::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference("User.count") do
       post api_v1_registration_url, params: {
         email_address: users(:one).email_address,
-        password: "a-secure-password",
-        password_confirmation: "a-secure-password"
+        password: "password",
+        password_confirmation: "password"
       }, as: :json
     end
 
@@ -61,8 +61,8 @@ class Api::V1::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert_no_difference("User.count") do
       post api_v1_registration_url, params: {
         email_address: user.email_address.upcase,
-        password: "a-secure-password",
-        password_confirmation: "a-secure-password"
+        password: "password",
+        password_confirmation: "password"
       }, as: :json
     end
 
@@ -71,6 +71,24 @@ class Api::V1::RegistrationsControllerTest < ActionDispatch::IntegrationTest
     assert response.parsed_body["otp_required"]
     assert_not_empty response.parsed_body["challenge_token"]
     assert_equal 1, ActionMailer::Base.deliveries.size
+  end
+
+  test "unverified registration requires the existing password and respects resend cooldown" do
+    user = users(:two)
+    user.update!(email_verified_at: nil)
+    challenge, = LoginChallenge.issue_for!(user)
+
+    post api_v1_registration_url, params: { email_address: user.email_address, password: "wrong-password", password_confirmation: "wrong-password" }, as: :json
+    assert_response :unprocessable_content
+    assert_api_error("VALIDATION_FAILED")
+    assert_equal challenge.id, user.login_challenges.active.first.id
+    assert_empty ActionMailer::Base.deliveries
+
+    post api_v1_registration_url, params: { email_address: user.email_address, password: "password", password_confirmation: "password" }, as: :json
+    assert_response :accepted
+    returned = LoginChallenge.find_signed(response.parsed_body.fetch("challenge_token"), purpose: :login_otp)
+    assert_equal challenge.id, returned.id
+    assert_empty ActionMailer::Base.deliveries
   end
 
   test "short or mismatched password is rejected" do

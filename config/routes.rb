@@ -20,6 +20,7 @@ Rails.application.routes.draw do
         delete :others, on: :collection, action: :destroy_others
       end
       resource :profile, only: %i[show update destroy] do
+        get :avatar
       end
       resource :account_security, only: :show, controller: :account_security do
         patch :password

@@ -132,7 +132,12 @@ async function finishSecureUser(token) { const target = pendingSecureUser.value;
         :loading="loading"
         :empty-text="t('users.empty')"
         server-mode
+        cursor-mode
         :total="pagination.total"
+        :next-cursor="pagination.next_cursor || ''"
+        :previous-cursor="pagination.previous_cursor || ''"
+        :has-next="pagination.has_next"
+        :has-previous="pagination.has_previous"
         @request="loadUsers"
         ><template #cell-email_address="{ item: user }"
           ><span class="font-medium dark:text-white">{{

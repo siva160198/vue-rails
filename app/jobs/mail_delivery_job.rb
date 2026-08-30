@@ -1,3 +1,5 @@
+require "net/smtp"
+
 class MailDeliveryJob < ActionMailer::MailDeliveryJob
   queue_as :mailers
 

@@ -8,13 +8,15 @@ class AuditLog < ApplicationRecord
   before_destroy { throw(:abort) }
 
   def self.record!(action:, actor: nil, auditable: nil, metadata: {}, request: nil)
+    chain_key = audit_chain_key(actor: actor, request: request)
     transaction do
-      connection.execute("SELECT pg_advisory_xact_lock(86420260830)")
-      previous = lock.order(:id).last&.entry_digest
+      connection.execute(sanitize_sql_array([ "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", chain_key ]))
+      previous = where(chain_key: chain_key).order(:id).last&.entry_digest
       occurred_at = Time.current
       attributes = {
         action: action, actor: actor, auditable: auditable, metadata: metadata,
-        ip_address: request&.remote_ip, user_agent: request&.user_agent,
+        ip_address: request&.remote_ip.to_s.first(64).presence, user_agent: request&.user_agent.to_s.first(512).presence,
+        chain_key: chain_key,
         previous_digest: previous, created_at: occurred_at, updated_at: occurred_at
       }
       canonical = digest_payload(attributes.merge(actor_id: actor&.id, auditable_type: auditable&.class&.base_class&.name, auditable_id: auditable&.id).except(:actor, :auditable))
@@ -25,13 +27,15 @@ class AuditLog < ApplicationRecord
   end
 
   def self.valid_chain?(scope = order(:id))
-    previous = nil
-    scope.each_with_index.all? do |entry, index|
-      link_valid = index.zero? || entry.previous_digest == previous
-      attributes = entry.attributes.symbolize_keys.slice(:action, :metadata, :ip_address, :user_agent, :previous_digest, :created_at, :updated_at, :actor_id, :auditable_type, :auditable_id)
-      digest_valid = ActiveSupport::SecurityUtils.secure_compare(entry.entry_digest.to_s, OpenSSL::HMAC.hexdigest("SHA256", audit_key, digest_payload(attributes)))
-      previous = entry.entry_digest
-      link_valid && digest_valid
+    scope.reorder(:chain_key, :id).group_by(&:chain_key).values.all? do |entries|
+      previous = nil
+      entries.each_with_index.all? do |entry, index|
+        link_valid = index.zero? || entry.previous_digest == previous
+        attributes = entry.attributes.symbolize_keys.slice(:action, :metadata, :ip_address, :user_agent, :chain_key, :previous_digest, :created_at, :updated_at, :actor_id, :auditable_type, :auditable_id)
+        digest_valid = ActiveSupport::SecurityUtils.secure_compare(entry.entry_digest.to_s, OpenSSL::HMAC.hexdigest("SHA256", audit_key, digest_payload(attributes)))
+        previous = entry.entry_digest
+        link_valid && digest_valid
+      end
     end
   end
 
@@ -40,11 +44,12 @@ class AuditLog < ApplicationRecord
     Rails.application.key_generator.generate_key("audit-log-chain", 32)
   end
   def self.digest_payload(attributes)
-    [
-      attributes[:action], canonical_value(attributes[:metadata]), attributes[:ip_address], attributes[:user_agent],
+    values = [ attributes[:action], canonical_value(attributes[:metadata]), attributes[:ip_address], attributes[:user_agent] ]
+    values << attributes[:chain_key] unless attributes[:chain_key] == "legacy"
+    values.concat([
       attributes[:previous_digest], attributes[:created_at]&.utc&.iso8601(6), attributes[:updated_at]&.utc&.iso8601(6),
       attributes[:actor_id], attributes[:auditable_type], attributes[:auditable_id]
-    ].to_json
+    ]).to_json
   end
   def self.canonical_value(value)
     case value
@@ -53,5 +58,9 @@ class AuditLog < ApplicationRecord
     else value
     end
   end
-  private_class_method :audit_key, :digest_payload, :canonical_value
+  def self.audit_chain_key(actor:, request:)
+    source = actor ? "user:#{actor.id}" : "ip:#{request&.remote_ip}"
+    "shard-#{Zlib.crc32(source) % 32}"
+  end
+  private_class_method :audit_key, :digest_payload, :canonical_value, :audit_chain_key
 end

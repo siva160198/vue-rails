@@ -43,7 +43,10 @@ id:
       time: "Waktu"
       warning: "Jika ini bukan Anda, segera akhiri sesi tersebut dari halaman Perangkat aktif dan ubah password."
   api:
+    jobs:
+      failure_redacted: "Detail error disembunyikan. Gunakan log internal dengan request ID untuk investigasi."
     errors:
+      payload_too_large: "Ukuran request melebihi batas yang diizinkan."
       avatar_missing: "Pilih foto profil terlebih dahulu."
       avatar_too_large: "Ukuran foto sumber maksimal 10 MB."
       avatar_dimensions_too_large: "Dimensi foto terlalu besar."
@@ -54,6 +57,7 @@ id:
       invalid_csrf_token: "Sesi keamanan tidak valid. Muat ulang halaman dan coba lagi."
       resource_not_found: "Resource yang diminta tidak ditemukan."
       invalid_json: "Format JSON pada request tidak valid."
+      invalid_pagination_cursor: "Cursor pagination tidak valid atau sudah kedaluwarsa. Muat ulang data dan coba lagi."
       internal_server_error: "Server mengalami masalah. Silakan coba lagi nanti."
       service_unavailable: "Layanan belum siap. Silakan coba lagi sebentar."
       validation_failed: "Data yang diberikan tidak valid."
@@ -61,6 +65,7 @@ id:
       registration_rate_limited: "Terlalu banyak pendaftaran. Coba lagi nanti."
       role_rate_limited: "Terlalu banyak perubahan role. Coba lagi sebentar."
       user_rate_limited: "Terlalu banyak perubahan pengguna. Coba lagi sebentar."
+      passkey_limit_reached: "Jumlah passkey sudah mencapai batas akun. Hapus passkey lama sebelum menambahkan yang baru."
       email_already_registered: "Email sudah terdaftar."
       account_inactive: "Akun Anda nonaktif. Silakan hubungi %{email}."
       invalid_credentials: "Email atau password tidak valid."

@@ -8,7 +8,7 @@ module Api
 
         def index
           authorize User
-          users, pagination = paginate_api(
+          users, pagination = paginate_cursor_api(
             policy_scope(User),
             search_columns: %w[email_address],
             sortable_columns: %w[email_address role active email_verified_at created_at],

@@ -24,6 +24,9 @@ class ApplicationController < ActionController::Base
   rescue_from ActionDispatch::Http::Parameters::ParseError do
     render_api_error("INVALID_JSON", status: :bad_request)
   end
+  rescue_from ApiPagination::InvalidCursor do
+    render_api_error("INVALID_PAGINATION_CURSOR", status: :bad_request)
+  end
 
   private
     def render_api_error(code, status:, details: {}, message: nil, **interpolations)

@@ -10,9 +10,10 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_055000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_30_080000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
+  enable_extension "pg_trgm"
 
   create_table "active_storage_attachments", force: :cascade do |t|
     t.bigint "blob_id", null: false
@@ -64,6 +65,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_055000) do
     t.bigint "actor_id"
     t.bigint "auditable_id"
     t.string "auditable_type"
+    t.string "chain_key", default: "legacy", null: false
     t.datetime "created_at", null: false
     t.string "entry_digest"
     t.string "ip_address"
@@ -71,11 +73,16 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_055000) do
     t.string "previous_digest"
     t.datetime "updated_at", null: false
     t.string "user_agent"
+    t.index "((metadata ->> 'email_digest'::text))", name: "index_audit_logs_on_email_digest_metadata", where: "((action)::text = 'session.login_failed'::text)"
     t.index ["action"], name: "index_audit_logs_on_action"
+    t.index ["action"], name: "index_audit_logs_on_action_trigram", opclass: :gin_trgm_ops, using: :gin
     t.index ["actor_id"], name: "index_audit_logs_on_actor_id"
     t.index ["auditable_type", "auditable_id"], name: "index_audit_logs_on_auditable_type_and_auditable_id"
+    t.index ["auditable_type"], name: "index_audit_logs_on_auditable_type_trigram", opclass: :gin_trgm_ops, using: :gin
+    t.index ["chain_key", "id"], name: "index_audit_logs_on_chain_key_and_id"
     t.index ["created_at"], name: "index_audit_logs_on_created_at"
     t.index ["entry_digest"], name: "index_audit_logs_on_entry_digest", unique: true
+    t.index ["ip_address"], name: "index_audit_logs_on_ip_address_trigram", opclass: :gin_trgm_ops, using: :gin
   end
 
   create_table "email_change_challenges", force: :cascade do |t|
@@ -153,7 +160,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_055000) do
     t.string "name", null: false
     t.boolean "system", default: false, null: false
     t.datetime "updated_at", null: false
+    t.index ["description"], name: "index_roles_on_description_trigram", opclass: :gin_trgm_ops, using: :gin
     t.index ["key"], name: "index_roles_on_key", unique: true
+    t.index ["key"], name: "index_roles_on_key_trigram", opclass: :gin_trgm_ops, using: :gin
+    t.index ["name"], name: "index_roles_on_name_trigram", opclass: :gin_trgm_ops, using: :gin
   end
 
   create_table "sessions", force: :cascade do |t|
@@ -203,11 +213,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_055000) do
     t.integer "failed_login_attempts", default: 0, null: false
     t.string "first_name", limit: 80
     t.string "last_name", limit: 80
+    t.bigint "last_totp_counter"
     t.datetime "locked_until"
     t.string "password_digest", null: false
     t.string "pending_email_revert_address"
     t.string "pending_email_revert_digest"
     t.datetime "pending_email_revert_expires_at"
+    t.string "pending_totp_secret"
     t.text "phone"
     t.jsonb "recovery_code_digests", default: [], null: false
     t.string "role", default: "member", null: false
@@ -217,6 +229,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_055000) do
     t.datetime "updated_at", null: false
     t.string "webauthn_user_handle"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
+    t.index ["email_address"], name: "index_users_on_email_address_trigram", opclass: :gin_trgm_ops, using: :gin
     t.index ["webauthn_user_handle"], name: "index_users_on_webauthn_user_handle", unique: true
   end
 

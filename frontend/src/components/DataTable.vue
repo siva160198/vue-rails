@@ -13,6 +13,11 @@ const props = defineProps({
   searchKeys: { type: Array, default: () => [] },
   serverMode: { type: Boolean, default: false },
   total: { type: Number, default: 0 },
+  cursorMode: { type: Boolean, default: false },
+  nextCursor: { type: String, default: "" },
+  previousCursor: { type: String, default: "" },
+  hasNext: { type: Boolean, default: false },
+  hasPrevious: { type: Boolean, default: false },
 });
 const emit = defineEmits(["request"]);
 const query = ref("");
@@ -49,7 +54,7 @@ const sorted = computed(() => {
   );
 });
 const resultTotal = computed(() =>
-  props.serverMode ? props.total : sorted.value.length,
+  props.serverMode ? (props.cursorMode ? props.items.length : props.total) : sorted.value.length,
 );
 const totalPages = computed(() =>
   Math.max(1, Math.ceil(resultTotal.value / perPage.value)),
@@ -63,10 +68,10 @@ const rows = computed(() =>
       ),
 );
 const from = computed(() =>
-  resultTotal.value ? (page.value - 1) * perPage.value + 1 : 0,
+  resultTotal.value ? (props.cursorMode ? 1 : (page.value - 1) * perPage.value + 1) : 0,
 );
 const to = computed(() =>
-  Math.min(page.value * perPage.value, resultTotal.value),
+  props.cursorMode ? props.items.length : Math.min(page.value * perPage.value, resultTotal.value),
 );
 let requestTimer;
 function requestRows(delay = 0) {
@@ -80,6 +85,7 @@ function requestRows(delay = 0) {
         search: query.value,
         sort: sortKey.value,
         direction: sortDirection.value,
+        cursor: "",
       }),
     delay,
   );
@@ -100,11 +106,22 @@ function sort(column) {
     sortKey.value = column.key;
     sortDirection.value = "asc";
   }
+  page.value = 1;
   requestRows();
 }
 function changePage(value) {
   page.value = value;
   requestRows();
+}
+function changeCursor(cursor, pageDelta) {
+  page.value = Math.max(1, page.value + pageDelta);
+  emit("request", {
+    cursor,
+    per_page: perPage.value,
+    search: query.value,
+    sort: sortKey.value,
+    direction: sortDirection.value,
+  });
 }
 onMounted(() => requestRows());
 </script>
@@ -195,8 +212,15 @@ onMounted(() => requestRows());
     <div
       class="flex flex-col gap-3 border-t border-gray-200 p-4 text-sm text-gray-500 dark:border-gray-800 sm:flex-row sm:items-center sm:justify-between"
     >
-      <p>{{ t("table.showing", { from, to, total: resultTotal }) }}</p>
+      <p v-if="cursorMode">{{ t("table.showing_cursor", { count: rows.length }) }}</p>
+      <p v-else>{{ t("table.showing", { from, to, total: resultTotal }) }}</p>
       <div class="flex gap-2">
+        <template v-if="cursorMode">
+          <button type="button" :disabled="!hasPrevious" class="rounded-lg border border-gray-200 px-3 py-2 font-medium disabled:opacity-40 dark:border-gray-700" @click="changeCursor(previousCursor, -1)">{{ t("table.previous") }}</button>
+          <span class="rounded-lg bg-brand-50 px-3 py-2 font-semibold text-brand-600 dark:bg-brand-500/10">{{ page }}</span>
+          <button type="button" :disabled="!hasNext" class="rounded-lg border border-gray-200 px-3 py-2 font-medium disabled:opacity-40 dark:border-gray-700" @click="changeCursor(nextCursor, 1)">{{ t("table.next") }}</button>
+        </template>
+        <template v-else>
         <button
           type="button"
           :disabled="page === 1"
@@ -215,6 +239,7 @@ onMounted(() => requestRows());
         >
           {{ t("table.next") }}
         </button>
+        </template>
       </div>
     </div>
   </div>

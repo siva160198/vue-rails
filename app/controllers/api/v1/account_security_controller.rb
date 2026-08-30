@@ -9,19 +9,19 @@ module Api
         account.step_up_verified account.totp_enabled account.totp_disabled
       ].freeze
 
-      rate_limit to: 10, within: 5.minutes, only: %i[password request_email verify_email request_recovery_codes verify_recovery_codes],
+      rate_limit to: 10, within: 5.minutes, only: %i[password request_email verify_email request_recovery_codes verify_recovery_codes request_totp verify_totp disable_totp],
         by: -> { Current.user&.id || request.remote_ip },
         with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }
 
       def show
         authorize :account_security
-        email_digest = Digest::SHA256.hexdigest(Current.user.email_address.downcase)
+        email_digests = [ EmailPrivacyDigest.call(Current.user.email_address), EmailPrivacyDigest.legacy(Current.user.email_address) ]
         scope = AuditLog.where(action: SECURITY_ACTIONS).where(
-          "actor_id = :user_id OR (action = 'session.login_failed' AND metadata ->> 'email_digest' = :digest)",
+          "actor_id = :user_id OR (action = 'session.login_failed' AND metadata ->> 'email_digest' IN (:digests))",
           user_id: Current.user.id,
-          digest: email_digest
+          digests: email_digests
         )
-        events, pagination = paginate_api(scope, search_columns: %w[action ip_address user_agent], sortable_columns: %w[action ip_address user_agent created_at], default_sort: :created_at, default_direction: :desc)
+        events, pagination = paginate_cursor_api(scope, search_columns: %w[action ip_address user_agent], sortable_columns: %w[action ip_address user_agent created_at], default_sort: :created_at, default_direction: :desc)
         render json: {
           events: events.map { |event| event.as_json(only: %i[id action ip_address user_agent created_at]) },
           passkeys: Current.user.webauthn_credentials.order(created_at: :desc).map { |credential| passkey_json(credential) },
@@ -107,10 +107,10 @@ module Api
 
       def request_totp
         authorize :account_security, :update?
-        return invalid_current_password unless Current.user.authenticate(params[:current_password])
+        return unless require_step_up!("totp_enroll")
 
         secret = TotpAuthenticator.generate_secret
-        Current.user.update!(totp_secret: secret, totp_enabled_at: nil)
+        Current.user.update!(pending_totp_secret: secret)
         render json: {
           secret: TotpAuthenticator.base32_secret(secret),
           provisioning_uri: TotpAuthenticator.provisioning_uri(secret: secret, email: Current.user.email_address, issuer: ENV.fetch("APP_NAME", "Vue Rails"))
@@ -119,9 +119,10 @@ module Api
 
       def verify_totp
         authorize :account_security, :update?
-        return render_api_error("INVALID_OTP", status: :unauthorized, details: { code: [ I18n.t("api.errors.invalid_otp") ] }) unless TotpAuthenticator.valid?(Current.user.totp_secret, params[:code])
+        return render_api_error("INVALID_SECURITY_CHALLENGE", status: :unauthorized) if Current.user.pending_totp_secret.blank?
+        return render_api_error("INVALID_OTP", status: :unauthorized, details: { code: [ I18n.t("api.errors.invalid_otp") ] }) unless TotpAuthenticator.valid?(Current.user.pending_totp_secret, params[:code])
 
-        Current.user.update!(totp_enabled_at: Time.current)
+        Current.user.update!(totp_secret: Current.user.pending_totp_secret, pending_totp_secret: nil, totp_enabled_at: Time.current)
         AuditLog.record!(action: "account.totp_enabled", actor: Current.user, auditable: Current.user, request: request)
         SecurityNotificationMailer.with(user: Current.user, security_event: "totp_enabled").security_setting_changed.deliver_later
         render json: { totp_enabled: true }
@@ -176,7 +177,7 @@ module Api
         end
 
         def user_json(user)
-          user.as_json(only: %i[id email_address role first_name last_name]).merge(permissions: user.permission_keys, avatar_url: user.avatar.attached? ? rails_blob_path(user.avatar, only_path: true) : nil)
+          user.as_json(only: %i[id email_address role first_name last_name]).merge(permissions: user.permission_keys, avatar_url: user.avatar.attached? ? "/api/v1/profile/avatar?v=#{user.avatar.blob_id}" : nil)
         end
 
         def email_revert_token(user, raw_token)

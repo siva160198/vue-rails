@@ -13,4 +13,15 @@ class DataRetentionJobTest < ActiveJob::TestCase
     assert_not LoginChallenge.exists?(old_challenge.id)
     assert_not AuditLog.exists?(old_log.id)
   end
+
+  test "queues deletion of old unattached blobs but preserves recent blobs" do
+    old_blob = ActiveStorage::Blob.create_and_upload!(io: StringIO.new("old"), filename: "old.txt", content_type: "text/plain")
+    recent_blob = ActiveStorage::Blob.create_and_upload!(io: StringIO.new("recent"), filename: "recent.txt", content_type: "text/plain")
+    old_blob.update_column(:created_at, 2.days.ago)
+
+    DataRetentionJob.perform_now
+
+    assert_not ActiveStorage::Blob.exists?(old_blob.id)
+    assert ActiveStorage::Blob.exists?(recent_blob.id)
+  end
 end

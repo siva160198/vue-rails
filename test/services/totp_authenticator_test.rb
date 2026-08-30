@@ -5,6 +5,7 @@ class TotpAuthenticatorTest < ActiveSupport::TestCase
     secret = Base64.strict_encode64("12345678901234567890")
     assert_equal "287082", TotpAuthenticator.code(secret, at: Time.at(59))
     assert TotpAuthenticator.valid?(secret, "287082", at: Time.at(59))
+    assert_equal 1, TotpAuthenticator.matching_counter(secret, "287082", at: Time.at(59))
     assert_not TotpAuthenticator.valid?(secret, "000000", at: Time.at(59))
   end
 

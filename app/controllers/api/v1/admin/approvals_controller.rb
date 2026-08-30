@@ -13,7 +13,14 @@ module Api
           authorize approval
           return unless require_step_up!("admin_approval")
 
-          approval.update!(approver: Current.user, approved_at: Time.current)
+          approved = approval.with_lock do
+            approval.reload
+            next false unless approval.approved_at.nil? && approval.consumed_at.nil? && approval.expires_at.future?
+
+            approval.update!(approver: Current.user, approved_at: Time.current)
+            true
+          end
+          return render_api_error("RESOURCE_NOT_FOUND", status: :not_found) unless approved
           AuditLog.record!(action: "admin.approval_granted", actor: Current.user, metadata: { approval_id: approval.id, requester_id: approval.requester_id, action_key: approval.action_key }, request: request)
           render json: { approval: approval_json(approval) }
         end

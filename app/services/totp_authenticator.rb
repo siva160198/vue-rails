@@ -20,13 +20,21 @@ class TotpAuthenticator
   end
 
   def self.valid?(secret, submitted, at: Time.current)
-    return false unless submitted.to_s.match?(/\A\d{6}\z/)
+    matching_counter(secret, submitted, at: at).present?
+  end
 
-    (-WINDOW..WINDOW).any? do |offset|
-      ActiveSupport::SecurityUtils.secure_compare(code(secret, at: at + offset * PERIOD), submitted.to_s)
+  def self.matching_counter(secret, submitted, at: Time.current)
+    return nil unless submitted.to_s.match?(/\A\d{6}\z/)
+
+    current_counter = at.to_i / PERIOD
+    (-WINDOW..WINDOW).each do |offset|
+      counter = current_counter + offset
+      candidate_time = Time.at(counter * PERIOD)
+      return counter if ActiveSupport::SecurityUtils.secure_compare(code(secret, at: candidate_time), submitted.to_s)
     end
+    nil
   rescue ArgumentError
-    false
+    nil
   end
 
   def self.provisioning_uri(secret:, email:, issuer:)

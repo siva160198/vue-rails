@@ -179,7 +179,12 @@ The Docker build uses Ruby 4.0.6 and Node 22, builds Vue into
 ### Health checks
 
 - `GET /up` is the dependency-free liveness probe used by Docker.
-- `GET /api/v1/readiness` verifies primary PostgreSQL and Solid Queue storage.
+- `GET /api/v1/readiness` verifies mandatory dependencies but exposes only a generic
+  ready/unavailable result. In production it requires the secret `X-Readiness-Token`,
+  is rate-limited, and briefly caches probes; detailed component health remains internal.
+  Set `MAX_REQUEST_BODY`, `HTTP_READ_TIMEOUT`, `RACK_TIMEOUT_SERVICE_TIMEOUT`,
+  `DATABASE_STATEMENT_TIMEOUT_MS`, and `DATABASE_LOCK_TIMEOUT_MS` using the safe defaults
+  in `.env.example` so slow or oversized work is bounded at both Thruster and Rails.
   Load balancers should only send traffic after it returns `200`.
 
 ### Observability
@@ -269,6 +274,12 @@ accepts comma-separated CIDRs and is matched only against Rails `request.remote_
 configure trusted reverse proxies at the infrastructure layer before relying on it.
 
 ## API documentation
+
+Large collections (`users`, `audit_logs`, account login history, and failed jobs) use
+opaque signed cursor pagination. Follow `next_cursor` or `previous_cursor` from the
+response; a cursor is valid only for the same search, sort, and direction. Exact totals
+are intentionally omitted from normal requests. API consumers may send
+`include_total=true` when a briefly cached exact count is genuinely needed.
 
 The formal OpenAPI 3.1 contract is [docs/openapi.yml](docs/openapi.yml). It
 documents authentication cookies, CSRF headers, request/response schemas,
