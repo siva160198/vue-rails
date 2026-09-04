@@ -19,7 +19,7 @@
     "@lucide/vue": "^1.33.0",
     "@sentry/vue": "^10.72.0",
     "swagger-ui-dist": "^5.32.14",
-    "vue": "^3.5.40",
+    "vue": "^3.5.42",
     "vue-router": "^4.6.4"
   },
   "devDependencies": {
