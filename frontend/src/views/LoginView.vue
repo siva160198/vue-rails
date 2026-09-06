@@ -5,6 +5,7 @@ import { apiFetch } from "../services/api";
 import { toast } from "../services/toast";
 import AsyncButton from "../components/AsyncButton.vue";
 import { t } from "../services/i18n";
+import { authenticatedLandingPath } from "../services/routeAccess";
 import { useAuth } from "../services/auth";
 import FormField from "../components/FormField.vue";
 import TextInput from "../components/TextInput.vue";
@@ -14,7 +15,7 @@ import { useFormErrors } from "../services/formErrors";
 
 const route = useRoute();
 const router = useRouter();
-const { setUser, logout, can } = useAuth();
+const { setUser, logout } = useAuth();
 const email = ref("");
 const password = ref("");
 const code = ref("");
@@ -95,13 +96,7 @@ async function completeLogin(user) {
     return;
   }
   setUser(user);
-  const defaultPath = can("dashboard.view")
-    ? "/admin"
-    : can("users.view")
-      ? "/admin/users"
-      : can("roles.view")
-        ? "/admin/roles"
-        : "/admin/audit-logs";
+  const defaultPath = authenticatedLandingPath(user.permissions);
   await router.push(route.query.redirect || defaultPath);
 }
 

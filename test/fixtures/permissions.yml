@@ -6,6 +6,10 @@ users_view:
   key: users.view
   name: Lihat users
 
+users_create:
+  key: users.create
+  name: Buat user
+
 users_update:
   key: users.update
   name: Ubah users

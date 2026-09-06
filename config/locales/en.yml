@@ -9,12 +9,19 @@ en:
       confirmation: "doesn't match"
       too_short: "is too short (minimum is %{count} characters)"
       too_long: "is too long (maximum is %{count} characters)"
+      required_for_role: "must be enabled for this role"
       reused: "was used previously"
       compromised: "was found in a data breach; choose another password"
   time:
     formats:
       long: "%Y-%m-%d %H:%M %Z"
   mailers:
+    invitation:
+      subject: "Your account invitation"
+      title: "Finish creating your account"
+      intro: "An administrator created an account for you. Use this link to create a password and verify your email address."
+      action: "Create password"
+      expiry: "This link is valid for 15 minutes. If it expires, request a new link from the forgot-password page."
     security:
       password_changed_subject: "Your account password was changed"
       password_changed_title: "Password changed"
@@ -88,7 +95,7 @@ en:
       captcha_required: "Complete the security verification before trying to sign in again."
       step_up_required: "Additional security verification is required."
       last_authentication_method_required: "Add another MFA method before removing this final method."
-      cannot_change_own_admin_access: "You cannot change your own role or deactivate your own account."
+      cannot_change_own_admin_access: "You cannot change your own role, status, or OTP requirement."
       invalid_email_revert_token: "The email-change reversal link is invalid or expired."
       malware_detected: "The file was rejected because it is malicious."
       malware_scan_failed: "The file could not be scanned securely. Try again later."

@@ -20,6 +20,7 @@ class User < ApplicationRecord
   validates :role, inclusion: { in: ->(_user) { Role.pluck(:key) } }
   validates :first_name, :last_name, length: { maximum: 80 }, allow_blank: true
   validates :phone, length: { maximum: 30 }, format: { with: /\A[+0-9() .-]+\z/ }, allow_blank: true
+  validate :login_otp_required_for_protected_role
   validate :acceptable_avatar
   validate :password_not_reused, if: -> { password.present? }
   validate :password_not_compromised, if: -> { password.present? }
@@ -95,6 +96,11 @@ class User < ApplicationRecord
     totp_enabled? || webauthn_credentials.exists?
   end
 
+  def role_requires_login_otp?
+    roles = ENV.fetch("MFA_REQUIRED_ROLES", ENV.fetch("ADMIN_MFA_REQUIRED", "true") == "true" ? "admin" : "").split(",").map(&:strip)
+    roles.include?(role)
+  end
+
   def regenerate_recovery_codes!
     codes = 8.times.map { SecureRandom.hex(5) }
     update!(recovery_code_digests: codes.map { |code| BCrypt::Password.create(code) })
@@ -113,6 +119,10 @@ class User < ApplicationRecord
   end
 
   private
+    def login_otp_required_for_protected_role
+      errors.add(:login_otp_required, :required_for_role) if role_requires_login_otp? && !login_otp_required?
+    end
+
     def password_not_reused
       reused = password_histories.order(created_at: :desc).limit(5).any? do |history|
         BCrypt::Password.new(history.password_digest).is_password?(password)

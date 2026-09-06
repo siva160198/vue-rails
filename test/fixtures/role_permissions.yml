@@ -4,6 +4,9 @@ admin_dashboard:
 admin_users_view:
   role: admin
   permission: users_view
+admin_users_create:
+  role: admin
+  permission: users_create
 admin_users_update:
   role: admin
   permission: users_update

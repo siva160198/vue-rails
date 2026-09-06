@@ -327,13 +327,24 @@ paths:
         "200": { description: Cursor-paginated users, content: { application/json: { schema: { type: object, required: [users, roles, pagination], properties: { users: { type: array, items: { $ref: "#/components/schemas/User" } }, roles: { type: array, items: { $ref: "#/components/schemas/RoleOption" } }, pagination: { $ref: "#/components/schemas/CursorPagination" } } } } } }
         "400": { $ref: "#/components/responses/ApiError" }
         "403": { $ref: "#/components/responses/ApiError" }
+    post:
+      tags: [Admin]
+      operationId: createUser
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/UserCreateRequest" } } } }
+      responses: { "201": { description: User created and invitation queued, content: { application/json: { schema: { $ref: "#/components/schemas/UserMutationResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
+  /api/v1/admin/users/new:
+    get:
+      tags: [Admin]
+      operationId: getNewUserOptions
+      responses: { "200": { description: Lazy-loaded options for the create-user modal, content: { application/json: { schema: { type: object, required: [roles], properties: { roles: { type: array, items: { $ref: "#/components/schemas/RoleOption" } } } } } } }, "403": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/users/{id}:
     get: { tags: [Admin], operationId: getUser, parameters: [{ $ref: "#/components/parameters/Id" }], responses: { "200": { description: User detail, content: { application/json: { schema: { $ref: "#/components/schemas/UserDetailResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "404": { $ref: "#/components/responses/ApiError" } } }
     patch:
       tags: [Admin]
       operationId: updateUser
       parameters: [{ $ref: "#/components/parameters/Id" }, { $ref: "#/components/parameters/CsrfToken" }, { $ref: "#/components/parameters/StepUpToken" }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { role: { type: string }, active: { type: boolean } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, properties: { role: { type: string }, active: { type: boolean }, login_otp_required: { type: boolean } } } } } }
       responses: { "200": { description: Updated user, content: { application/json: { schema: { $ref: "#/components/schemas/UserMutationResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" }, "422": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/roles:
     get: { tags: [Admin], operationId: listRoles, parameters: [{ $ref: "#/components/parameters/Page" }, { $ref: "#/components/parameters/PerPage" }, { $ref: "#/components/parameters/Search" }, { $ref: "#/components/parameters/Sort" }, { $ref: "#/components/parameters/Direction" }], responses: { "200": { description: Paginated roles and permissions, content: { application/json: { schema: { $ref: "#/components/schemas/RoleListResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" } } }
@@ -516,9 +527,13 @@ components:
       properties: { avatar_url: { type: string }, byte_size: { type: integer, maximum: 51200 }, content_type: { const: image/avif } }
     User:
       type: object
-      required: [id, email_address, role, active, created_at]
-      properties: { id: { type: integer }, email_address: { type: string, format: email }, role: { type: string }, active: { type: boolean }, email_verified_at: { type: [string, "null"], format: date-time }, created_at: { type: string, format: date-time } }
-    RoleOption: { type: object, required: [key, name], properties: { key: { type: string }, name: { type: string } } }
+      required: [id, email_address, role, active, login_otp_required, created_at]
+      properties: { id: { type: integer }, email_address: { type: string, format: email }, role: { type: string }, active: { type: boolean }, login_otp_required: { type: boolean }, email_verified_at: { type: [string, "null"], format: date-time }, created_at: { type: string, format: date-time } }
+    UserCreateRequest:
+      type: object
+      required: [email_address, role, active, login_otp_required]
+      properties: { email_address: { type: string, format: email }, first_name: { type: string, maxLength: 80 }, last_name: { type: string, maxLength: 80 }, phone: { type: string, maxLength: 30 }, role: { type: string }, active: { type: boolean }, login_otp_required: { type: boolean } }
+    RoleOption: { type: object, required: [key, name, login_otp_required], properties: { key: { type: string }, name: { type: string }, login_otp_required: { type: boolean } } }
     Permission: { type: object, required: [key, name], properties: { key: { type: string }, name: { type: string }, description: { type: [string, "null"] } } }
     RoleWriteRequest:
       type: object

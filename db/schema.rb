@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_30_080000) do
+ActiveRecord::Schema[8.1].define(version: 2026_09_04_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -212,9 +212,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_30_080000) do
     t.datetime "email_verified_at"
     t.integer "failed_login_attempts", default: 0, null: false
     t.string "first_name", limit: 80
+    t.datetime "invitation_accepted_at"
+    t.datetime "invited_at"
     t.string "last_name", limit: 80
     t.bigint "last_totp_counter"
     t.datetime "locked_until"
+    t.boolean "login_otp_required", default: true, null: false
     t.string "password_digest", null: false
     t.string "pending_email_revert_address"
     t.string "pending_email_revert_digest"

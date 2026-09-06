@@ -27,6 +27,11 @@ module Api
         return render_invalid_token unless user
 
         user.assign_attributes(password_params)
+        accepting_invitation = user.invited_at? && !user.invitation_accepted_at?
+        if accepting_invitation
+          user.email_verified_at ||= Time.current
+          user.invitation_accepted_at = Time.current
+        end
         if user.save
           user.sessions.destroy_all
           user.increment!(:authentication_version)

@@ -7,6 +7,14 @@ class UserPolicy < ApplicationPolicy
     user&.can?("users.update") && record != user
   end
 
+  def create?
+    user&.can?("users.create")
+  end
+
+  def new?
+    create?
+  end
+
   def show?
     user&.can?("users.view")
   end

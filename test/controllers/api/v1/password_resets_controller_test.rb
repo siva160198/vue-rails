@@ -41,6 +41,21 @@ class Api::V1::PasswordResetsControllerTest < ActionDispatch::IntegrationTest
     assert_empty ActionMailer::Base.deliveries
   end
 
+  test "setting an invited user's password also verifies the invitation email" do
+    user = User.create!(email_address: "pending-invite@example.com", password: SecureRandom.base64(32), role: "member", invited_at: Time.current)
+    token = user.password_reset_token
+
+    patch api_v1_password_reset_url, params: {
+      token: token,
+      password: "the-new-secure-password",
+      password_confirmation: "the-new-secure-password"
+    }, as: :json
+
+    assert_response :success
+    assert user.reload.email_verified?
+    assert user.invitation_accepted_at?
+  end
+
   test "invalid token cannot open or submit the reset form" do
     get api_v1_password_reset_url, params: { token: "invalid" }, as: :json
     assert_response :unauthorized

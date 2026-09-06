@@ -27,6 +27,11 @@ module Api
           render_inactive_account
         elsif user
           protection.record_success!(user)
+          if !user.login_otp_required? && user.email_verified?
+            start_new_session_for(user)
+            AuditLog.record!(action: "session.login", actor: user, auditable: user, request: request)
+            return render json: { otp_required: false, user: user_json(user) }, status: :created
+          end
           if otp_trusted_for?(user)
             start_new_session_for(user)
             AuditLog.record!(action: "session.login", actor: user, auditable: user, request: request)
@@ -147,8 +152,7 @@ module Api
         end
 
         def mfa_required_for?(user)
-          roles = ENV.fetch("MFA_REQUIRED_ROLES", ENV.fetch("ADMIN_MFA_REQUIRED", "true") == "true" ? "admin" : "").split(",").map(&:strip)
-          roles.include?(user.role)
+          user.role_requires_login_otp?
         end
 
         def challenge_json(challenge)

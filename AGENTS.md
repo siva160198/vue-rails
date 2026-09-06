@@ -83,7 +83,20 @@ default.
   Form controls must inherit the shared Tailwind styling in `frontend/src/style.css`;
   do not introduce browser-default checkboxes/selects or new accent color families.
 - Vue routes are defined in `frontend/src/router.js`.
+- Login, registration, forgot-password, and token-based reset-password pages are
+  guest-only routes. Mark them with `meta.guestOnly`; an authenticated user must be
+  redirected through `authenticatedLandingPath()` to their first permitted admin page,
+  then Profile, then Home. Reuse this helper after successful authentication and never
+  hardcode a fallback that could send the user to a forbidden page. The public header
+  shows Home, Login for guests (Admin for authenticated users), and the language control;
+  registration remains discoverable from Login rather than the header.
 - The admin shell is `frontend/src/components/admin/AdminLayout.vue`.
+- Admin page navigation is defined once in
+  `frontend/src/config/adminNavigation.js`. Add navigable admin pages there with a
+  stable key, translation key, TailAdmin-compatible icon, path, permission, and lazy
+  component; the router and sidebar both derive from this configuration. Do not
+  duplicate admin page routes or navigation arrays in components. Redirect-only and
+  non-menu routes remain explicit in `frontend/src/router.js`.
 - Header dropdowns (language, notifications, and account) must be mutually lightweight
   and close on outside click through the shared `useClickOutside` composable.
 - The TailAdmin account dropdown must show the lazy `/profile` link immediately above
@@ -183,6 +196,14 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   actually supported by the feature: `resource.create`, `resource.update`, and
   `resource.delete`. Use a specific verb such as `orders.approve`, `users.export`, or
   `reports.download` for sensitive actions that do not fit CRUD.
+- Admin-created users require `users.create` and must receive a short-lived signed
+  invitation/set-password link; administrators never choose, display, store, or email a
+  plaintext user password. Accepting the invitation verifies the destination email.
+  Per-user login OTP changes use `users.update`, step-up authentication, optional dual
+  control, audit logging, session revocation, trusted-session invalidation, and a security
+  notification. Never allow login OTP to be disabled for `MFA_REQUIRED_ROLES` or for the
+  acting administrator's own account. DataTable cells show OTP state as icons; the actual
+  toggle belongs in the lazy Edit User modal.
 - Permission work is incomplete unless it includes an idempotent production migration,
   updated seeds, automatic assignment to the administrator role, dependency rules (for
   example, update implies view), Indonesian and English names/descriptions, Pundit policy

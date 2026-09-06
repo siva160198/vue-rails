@@ -213,6 +213,13 @@ Admins can search users, change member/admin roles, and disable accounts. An
 admin cannot change their own access. Disabling a user revokes their sessions,
 and security-sensitive actions are written to the audit log.
 
+Admins with `users.create` can create users without choosing or transmitting a
+password. The user receives a short-lived signed invitation link and sets their own
+password; accepting it verifies ownership of the email address. Login OTP can be
+enabled per user from Edit User. Changing it revokes active sessions, is audited,
+requires step-up authentication, and cannot be disabled for roles listed in
+`MFA_REQUIRED_ROLES`.
+
 Users can review their own active login sessions, see login time, IP address, and
 browser user-agent, revoke one session, or revoke every session except the current
 device. Every successful login sends a security notification email. Session APIs

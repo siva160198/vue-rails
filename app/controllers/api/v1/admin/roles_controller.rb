@@ -7,6 +7,7 @@ module Api
           with: -> { render_api_error("ROLE_RATE_LIMITED", status: :too_many_requests) }
 
         PERMISSION_DEPENDENCIES = {
+          "users.create" => "users.view",
           "users.update" => "users.view",
           "account_security.update" => "account_security.view",
           "profile.update" => "profile.view",

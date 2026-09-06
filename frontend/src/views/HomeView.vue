@@ -32,7 +32,7 @@ onMounted(async () => {
     <div class="mt-8 flex items-center gap-3 rounded-2xl border bg-white p-5 shadow-sm">
       <span class="h-3 w-3 rounded-full" :class="api.state === 'ready' ? 'bg-brand-500' : api.state === 'error' ? 'bg-error-700' : 'animate-pulse bg-gray-400'"></span>
       <p v-if="api.state === 'loading'">{{ t('home.connecting') }}</p>
-      <p v-else-if="api.state === 'ready'">{{ t('home.connected') }} — {{ api.data.database.adapter }} / {{ api.data.database.name }}</p>
+      <p v-else-if="api.state === 'ready'">{{ t('home.connected') }}</p>
       <p v-else class="text-error-700">{{ t('home.disconnected') }}: {{ api.error }}</p>
     </div>
   </section></main>

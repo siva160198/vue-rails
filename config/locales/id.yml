@@ -9,12 +9,19 @@ id:
       confirmation: "tidak sama"
       too_short: "terlalu pendek (minimal %{count} karakter)"
       too_long: "terlalu panjang (maksimal %{count} karakter)"
+      required_for_role: "wajib diaktifkan untuk role ini"
       reused: "pernah digunakan sebelumnya"
       compromised: "ditemukan dalam kebocoran data; gunakan password lain"
   time:
     formats:
       long: "%Y-%m-%d %H:%M %Z"
   mailers:
+    invitation:
+      subject: "Undangan akun Anda"
+      title: "Selesaikan pembuatan akun"
+      intro: "Administrator telah membuat akun untuk Anda. Gunakan link berikut untuk membuat password dan memverifikasi alamat email Anda."
+      action: "Buat password"
+      expiry: "Link ini berlaku selama 15 menit. Jika kedaluwarsa, gunakan halaman lupa password untuk meminta link baru."
     security:
       password_changed_subject: "Password akun Anda telah diubah"
       password_changed_title: "Password berhasil diubah"
@@ -88,7 +95,7 @@ id:
       captcha_required: "Selesaikan verifikasi keamanan sebelum mencoba login kembali."
       step_up_required: "Verifikasi keamanan tambahan diperlukan."
       last_authentication_method_required: "Tambahkan metode MFA lain sebelum menghapus metode terakhir ini."
-      cannot_change_own_admin_access: "Anda tidak dapat mengubah role atau menonaktifkan akun sendiri."
+      cannot_change_own_admin_access: "Anda tidak dapat mengubah role, status, atau kewajiban OTP akun sendiri."
       invalid_email_revert_token: "Link pembatalan perubahan email tidak valid atau sudah kedaluwarsa."
       malware_detected: "File ditolak karena terdeteksi berbahaya."
       malware_scan_failed: "File belum dapat diperiksa keamanannya. Coba lagi nanti."

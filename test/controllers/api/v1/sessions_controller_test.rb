@@ -62,6 +62,29 @@ class Api::V1::SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "user with login OTP disabled signs in immediately after password verification" do
+    user = users(:two)
+    user.update!(login_otp_required: false)
+
+    post api_v1_session_url, params: { email_address: user.email_address, password: "password" }, as: :json
+
+    assert_response :created
+    assert_equal false, response.parsed_body.fetch("otp_required")
+    assert_equal user.id, response.parsed_body.dig("user", "id")
+    assert_not LoginChallenge.exists?(user: user)
+  end
+
+  test "unverified email still requires OTP when recurring login OTP is disabled" do
+    user = users(:two)
+    user.update!(login_otp_required: false, email_verified_at: nil)
+
+    post api_v1_session_url, params: { email_address: user.email_address, password: "password" }, as: :json
+
+    assert_response :accepted
+    assert response.parsed_body.fetch("otp_required")
+    assert response.parsed_body.fetch("account_unverified")
+  end
+
   test "invalid credentials are rejected" do
     post api_v1_session_url, params: { email_address: users(:one).email_address, password: "wrong" }, as: :json
     assert_response :unauthorized

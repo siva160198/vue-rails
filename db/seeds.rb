@@ -8,6 +8,7 @@ Role.find_or_create_by!(key: "member") { |role| role.assign_attributes(name: "Me
 permissions = {
   "dashboard.view" => [ "Dashboard", "Melihat dashboard admin." ],
   "users.view" => [ "Lihat users", "Melihat daftar dan detail user." ],
+  "users.create" => [ "Buat user", "Membuat user dan mengirim link untuk membuat password." ],
   "users.update" => [ "Ubah users", "Mengubah role dan status user." ],
   "roles.view" => [ "Lihat roles", "Melihat daftar role dan permission." ],
   "roles.create" => [ "Buat role", "Membuat role baru dan menetapkan permission awal." ],

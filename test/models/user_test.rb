@@ -1,6 +1,14 @@
 require "test_helper"
 
 class UserTest < ActiveSupport::TestCase
+  test "protected roles require login OTP" do
+    user = users(:two)
+    user.assign_attributes(role: "admin", login_otp_required: false)
+
+    assert_not user.valid?
+    assert_includes user.errors[:login_otp_required], "wajib diaktifkan untuk role ini"
+  end
+
   test "recovery code can only be consumed once" do
     user = users(:one)
     code = user.regenerate_recovery_codes!.first

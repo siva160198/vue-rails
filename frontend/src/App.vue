@@ -1,14 +1,22 @@
 <script setup>
-import { defineAsyncComponent } from 'vue'
+import { computed, defineAsyncComponent, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { appError } from './services/errorState'
 import ToastContainer from './components/ToastContainer.vue'
 import NavigationLoader from './components/NavigationLoader.vue'
 import { t } from './services/i18n'
 import LanguageSwitcher from './components/LanguageSwitcher.vue'
+import { useAuth } from './services/auth'
+import { authenticatedLandingPath } from './services/routeAccess'
 
 const route = useRoute()
 const AppErrorView = defineAsyncComponent(() => import('./views/AppErrorView.vue'))
+const { user, permissions, resolved, loadUser } = useAuth()
+const authenticatedPath = computed(() => authenticatedLandingPath(permissions.value))
+
+onMounted(() => {
+  loadUser().catch(() => {})
+})
 </script>
 
 <template>
@@ -18,7 +26,8 @@ const AppErrorView = defineAsyncComponent(() => import('./views/AppErrorView.vue
         <RouterLink to="/" class="text-xl font-bold tracking-tight">Vue Rails</RouterLink>
         <div class="flex items-center gap-5 text-sm font-medium">
           <RouterLink to="/" class="hover:text-brand-600">{{ t('nav.home') }}</RouterLink>
-          <RouterLink to="/admin" class="hover:text-brand-600">{{ t('nav.admin') }}</RouterLink>
+          <RouterLink v-if="resolved && !user" to="/login" class="hover:text-brand-600">{{ t('auth.login') }}</RouterLink>
+          <RouterLink v-else-if="user" :to="authenticatedPath" class="hover:text-brand-600">{{ t('nav.admin') }}</RouterLink>
           <LanguageSwitcher />
         </div>
       </nav>

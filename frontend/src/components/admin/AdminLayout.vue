@@ -3,22 +3,15 @@ import { computed, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   Bell,
-  BookOpen,
-  BriefcaseBusiness,
   ChevronDown,
-  ClipboardCheck,
   Compass,
-  LayoutDashboard,
   LogOut,
   Menu,
   Moon,
   PanelLeftClose,
   PanelLeftOpen,
-  ScrollText,
   Search,
-  ShieldCheck,
   Sun,
-  Users,
   UserRound,
   X,
 } from "@lucide/vue";
@@ -28,6 +21,10 @@ import { useClickOutside } from "../../composables/useClickOutside";
 import { t } from "../../services/i18n";
 import { toast } from "../../services/toast";
 import { useAuth } from "../../services/auth";
+import {
+  adminNavigation,
+  permittedAdminNavigation,
+} from "../../config/adminNavigation";
 
 const route = useRoute();
 const router = useRouter();
@@ -41,60 +38,17 @@ const profileMenu = ref(null);
 const notificationOpen = ref(false);
 const notificationMenu = ref(null);
 const dark = ref(false);
-const userManagementOpen = ref(
-  route.path.startsWith("/admin/users") ||
-    route.path.startsWith("/admin/roles"),
-);
+const openGroups = ref(new Set(
+  adminNavigation
+    .filter((item) => item.children?.some((child) => route.path === child.path))
+    .map((item) => item.key),
+));
 
 useClickOutside(profileMenu, () => { profileOpen.value = false; });
 useClickOutside(notificationMenu, () => { notificationOpen.value = false; });
 
-const navigation = computed(() => [
-  {
-    label: t("nav.dashboard"),
-    icon: LayoutDashboard,
-    to: "/admin",
-    permission: "dashboard.view",
-  },
-  {
-    label: t("nav.user_management"),
-    icon: Users,
-    children: [
-      {
-        label: t("nav.users"),
-        icon: Users,
-        to: "/admin/users",
-        permission: "users.view",
-      },
-      {
-        label: t("nav.roles"),
-        icon: ShieldCheck,
-        to: "/admin/roles",
-        permission: "roles.view",
-      },
-    ],
-  },
-  {
-    label: t("nav.audit_logs"),
-    icon: ScrollText,
-    to: "/admin/audit-logs",
-    permission: "audit_logs.view",
-  },
-  { label: t("nav.jobs"), icon: BriefcaseBusiness, to: "/admin/jobs", permission: "jobs.view" },
-  { label: t("nav.api_docs"), icon: BookOpen, to: "/admin/api-docs", permission: "api_docs.view" },
-  { label: t("nav.security_approvals"), icon: ClipboardCheck, to: "/admin/security-approvals", permission: "security_approvals.view" },
-]);
-
 const visibleNavigation = computed(() =>
-  navigation.value.flatMap((item) => {
-    if (item.permission && !permissions.value.includes(item.permission))
-      return [];
-    if (!item.children) return [item];
-    const children = item.children.filter((child) =>
-      permissions.value.includes(child.permission),
-    );
-    return children.length ? [{ ...item, children }] : [];
-  }),
+  permittedAdminNavigation(permissions.value),
 );
 
 onMounted(() => {
@@ -118,11 +72,19 @@ function toggleDesktopSidebar() {
   );
 }
 
-function toggleUserManagement() {
+function toggleGroup(key) {
   const wasCollapsed = !desktopSidebarOpen.value;
   if (wasCollapsed) desktopSidebarOpen.value = true;
-  userManagementOpen.value = wasCollapsed ? true : !userManagementOpen.value;
+  const next = new Set(openGroups.value);
+  if (wasCollapsed) next.add(key);
+  else if (next.has(key)) next.delete(key);
+  else next.add(key);
+  openGroups.value = next;
   localStorage.setItem("vue_rails-sidebar", "open");
+}
+
+function isGroupOpen(key) {
+  return openGroups.value.has(key);
 }
 
 async function signOut() {
@@ -179,13 +141,13 @@ async function signOut() {
           {{ t("admin.menu") }}
         </p>
         <ul class="space-y-2">
-          <li v-for="item in visibleNavigation" :key="item.label">
+          <li v-for="item in visibleNavigation" :key="item.key">
             <RouterLink
-              v-if="item.to"
-              :to="item.to"
-              :title="desktopSidebarOpen ? undefined : item.label"
+              v-if="item.path"
+              :to="item.path"
+              :title="desktopSidebarOpen ? undefined : t(item.labelKey)"
               :class="[
-                route.path === item.to
+                route.path === item.path
                   ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400'
                   : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5',
                 desktopSidebarOpen ? '' : 'lg:justify-center',
@@ -195,28 +157,28 @@ async function signOut() {
             >
               <component :is="item.icon" :size="20" /><span
                 :class="desktopSidebarOpen ? '' : 'lg:hidden'"
-                >{{ item.label }}</span
+                >{{ t(item.labelKey) }}</span
               >
             </RouterLink>
             <template v-else-if="item.children">
               <button
-                :title="desktopSidebarOpen ? undefined : item.label"
+                :title="desktopSidebarOpen ? undefined : t(item.labelKey)"
                 :class="[
-                  item.children.some((child) => route.path === child.to)
+                  item.children.some((child) => route.path === child.path)
                     ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400'
                     : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5',
                   desktopSidebarOpen ? '' : 'lg:justify-center',
                 ]"
                 class="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium"
-                :aria-expanded="userManagementOpen"
-                @click="toggleUserManagement"
+                :aria-expanded="isGroupOpen(item.key)"
+                @click="toggleGroup(item.key)"
               >
                 <component :is="item.icon" :size="20" /><span
                   :class="desktopSidebarOpen ? '' : 'lg:hidden'"
-                  >{{ item.label }}</span
+                  >{{ t(item.labelKey) }}</span
                 ><ChevronDown
                   :class="[
-                    userManagementOpen ? 'rotate-180' : '',
+                    isGroupOpen(item.key) ? 'rotate-180' : '',
                     desktopSidebarOpen ? '' : 'lg:hidden',
                   ]"
                   :size="16"
@@ -224,22 +186,22 @@ async function signOut() {
                 />
               </button>
               <ul
-                v-show="userManagementOpen"
+                v-show="isGroupOpen(item.key)"
                 :class="desktopSidebarOpen ? '' : 'lg:hidden'"
                 class="ml-5 mt-2 space-y-1 border-l border-gray-200 pl-4 dark:border-gray-700"
               >
-                <li v-for="child in item.children" :key="child.to">
+                <li v-for="child in item.children" :key="child.key">
                   <RouterLink
-                    :to="child.to"
+                    :to="child.path"
                     :class="
-                      route.path === child.to
+                      route.path === child.path
                         ? 'bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400'
                         : 'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5'
                     "
                     class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium"
                     @click="sidebarOpen = false"
                   >
-                    <component :is="child.icon" :size="17" />{{ child.label }}
+                    <component :is="child.icon" :size="17" />{{ t(child.labelKey) }}
                   </RouterLink>
                 </li>
               </ul>

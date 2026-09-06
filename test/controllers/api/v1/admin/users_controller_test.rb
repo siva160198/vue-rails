@@ -1,6 +1,35 @@
 require "test_helper"
 
 class Api::V1::Admin::UsersControllerTest < ActionDispatch::IntegrationTest
+  test "admin lazily loads role options for the create modal" do
+    sign_in_as users(:one)
+
+    get new_api_v1_admin_user_url, as: :json
+
+    assert_response :success
+    admin_role = response.parsed_body.fetch("roles").find { |role| role["key"] == "admin" }
+    assert admin_role.fetch("login_otp_required")
+  end
+
+  test "admin creates an invited user without choosing their password" do
+    sign_in_as users(:one)
+
+    assert_difference([ "User.count", "AuditLog.count" ], 1) do
+      post api_v1_admin_users_url,
+        params: { email_address: "invited@example.com", first_name: "Invited", last_name: "User", phone: "+62 812", role: "member", active: true, login_otp_required: false },
+        headers: { "X-Step-Up-Token" => step_up_token_for(users(:one), "admin_user_create") }, as: :json
+    end
+
+    assert_response :created
+    invited = User.find_by!(email_address: "invited@example.com")
+    assert invited.invited_at?
+    assert_not invited.email_verified?
+    assert_not invited.login_otp_required?
+    assert_equal "+62 812", invited.phone
+    assert_equal "admin.user_created", AuditLog.last.action
+    assert_equal "Undangan akun Anda", ActionMailer::Base.deliveries.last.subject
+  end
+
   test "admin lists users" do
     sign_in_as users(:one)
 
@@ -109,6 +138,29 @@ class Api::V1::Admin::UsersControllerTest < ActionDispatch::IntegrationTest
     assert_not target.active?
     assert_equal "admin.user_updated", AuditLog.last.action
     assert_equal users(:one), AuditLog.last.actor
+  end
+
+  test "changing login OTP revokes the target user's active sessions" do
+    sign_in_as users(:one)
+    target = users(:two)
+    target.sessions.create!
+
+    patch api_v1_admin_user_url(target), params: { login_otp_required: false },
+      headers: { "X-Step-Up-Token" => step_up_token_for(users(:one), "admin_user_update") }, as: :json
+
+    assert_response :success
+    assert_not target.reload.login_otp_required?
+    assert_empty target.sessions.reload
+  end
+
+  test "OTP cannot be disabled for a role that requires MFA" do
+    sign_in_as users(:one)
+    target = users(:two)
+
+    patch api_v1_admin_user_url(target), params: { role: "admin", login_otp_required: false }, as: :json
+
+    assert_response :unprocessable_content
+    assert_equal [ "wajib diaktifkan untuk role ini" ], response.parsed_body.dig("error", "details", "login_otp_required")
   end
 
   test "unchanged user update skips persistence and audit log" do
