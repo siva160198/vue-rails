@@ -1,0 +1,200 @@
+schema_version: 1
+name: vue-rails-starter-upgrade-audit
+generated_from:
+  application: Pulseboard
+  base_commit: 56f584eb76445f62919fe0b98d547fc2cddc995b
+  compared_upstream_commit: 0729c18
+  audited_on: "2026-10-01"
+
+instructions:
+  statuses: [present, partial, missing, not_applicable]
+  required_evidence:
+    - implementation_files
+    - tests
+    - documentation
+  rules:
+    - Audit before editing.
+    - Do not overwrite newer upstream implementations.
+    - Adopt one phase at a time.
+    - Keep product-domain modules outside starter core.
+    - Never copy real credentials or production data.
+
+capabilities:
+  - id: environment_contract
+    priority: P0
+    target: core
+    expected:
+      - Central public application identity and URL configuration
+      - Documented Rails, Vite, database, mail, security, and operations variables
+      - Development-only dotenv support or an equivalent documented mechanism
+      - No secrets exposed to the frontend
+    probes:
+      - .env.example
+      - config/application.rb
+      - config/environments/development.rb
+      - config/environments/production.rb
+      - frontend/vite.config.js
+      - frontend/src/services/appConfig.js
+
+  - id: consistent_development_runner
+    priority: P0
+    target: core
+    expected:
+      - bin/dev and Procfile.dev use the same environment-driven ports
+      - Rails and Vite can bind to 0.0.0.0 when explicitly configured
+      - Vite proxies API and Active Storage to Rails
+      - Child processes stop cleanly
+    probes:
+      - bin/dev
+      - Procfile.dev
+      - frontend/vite.config.js
+
+  - id: frontend_runtime_config
+    priority: P0
+    target: core
+    expected:
+      - Public config only
+      - App name, environment, release, and API timeout supported
+      - Safe defaults and tests
+    probes:
+      - frontend/src/services/appConfig.js
+      - frontend/vite.config.js
+      - frontend/src/services
+
+  - id: complete_ci_quality_gates
+    priority: P0
+    target: core
+    expected:
+      - RuboCop, bundler-audit, Brakeman, Rails tests, and seed test
+      - Vitest tests and production frontend build
+      - OpenAPI validation
+      - Playwright smoke test where browser execution is available
+      - Supported Node engine enforced
+    probes:
+      - config/ci.rb
+      - bin/ci
+      - frontend/package.json
+      - frontend/e2e
+      - docs/openapi.yml
+
+  - id: server_backed_table_contract
+    priority: P1
+    target: core
+    expected:
+      - Pagination or cursor support
+      - Search and whitelisted sorting/filtering
+      - Loading, empty, error, retry, and accessible sort states
+      - Request and component tests
+    probes:
+      - frontend/src/components
+      - frontend/src/services/serverTable.js
+      - app/controllers/concerns
+      - test/controllers
+
+  - id: report_date_and_comparison_context
+    priority: P1
+    target: optional_recipe
+    expected:
+      - Shareable URL date/filter state
+      - Central date range and previous-period calculation
+      - Safe zero handling
+      - Metric-aware positive and negative semantics
+    reference_files:
+      - app/services/analytics/date_range.rb
+      - app/services/analytics/comparison_calculator.rb
+      - frontend/src/services/analyticsContext.js
+      - frontend/src/components/AnalyticsDateFilter.vue
+
+  - id: reusable_line_chart
+    priority: P1
+    target: optional_recipe
+    expected:
+      - Current and comparison series
+      - Hover tooltip with period and formatted values
+      - Loading, empty, and error states
+      - Responsive SVG without geometry distortion
+    reference_files:
+      - frontend/src/components/DashboardLineChart.vue
+      - frontend/src/views/PlatformDashboardView.vue
+
+  - id: background_import_pipeline
+    priority: P1
+    target: optional_recipe
+    expected:
+      - Persisted import run and row outcomes
+      - Bounded background processing via Solid Queue
+      - Deterministic duplicate policy
+      - Comma and semicolon delimiter support
+      - Downloadable sample and failure details
+      - File, row, encoding, and formula-injection safeguards
+    reference_files:
+      - app/jobs/bookings/import_csv_job.rb
+      - app/services/bookings/csv_importer.rb
+      - app/jobs/platform_bookings/import_csv_job.rb
+      - app/services/platform_bookings/csv_importer.rb
+
+  - id: report_query_service_pattern
+    priority: P1
+    target: optional_recipe
+    expected:
+      - Aggregation in Rails or PostgreSQL
+      - Thin JSON controller
+      - Whitelisted filter and sorting
+      - No N+1 queries
+      - Summary totals reconcile with detail totals
+    reference_files:
+      - app/services/platform_bookings/report.rb
+      - app/controllers/api/v1/platform_reports_controller.rb
+
+  - id: external_integration_sync_pattern
+    priority: P2
+    target: optional_recipe
+    expected:
+      - Least-privilege OAuth or credential flow
+      - Encrypted secrets at rest
+      - Local synchronized data
+      - Idempotent, chunked, quota-aware jobs
+      - Sync health and reconnection state
+    reference_files:
+      - app/services/google/oauth/client.rb
+      - app/jobs/analytics
+      - app/models/google_connection.rb
+      - app/models/analytics_sync_run.rb
+
+  - id: localized_product_ui
+    priority: P0
+    target: core
+    expected:
+      - English and Indonesian for every new user-facing string
+      - Locale persists and does not bypass backend error localization
+      - Language switching has a visible loading state where necessary
+    probes:
+      - config/locales/en.yml
+      - config/locales/id.yml
+      - frontend/src/services/i18n.js
+
+excluded_from_core:
+  - Pulseboard branding and database names
+  - Real environment values and credentials
+  - GA4 and GSC provider dependencies
+  - WordPress integration
+  - Booking and platform modules
+  - SEO opportunities and content planning
+  - Product-specific navigation and permissions
+  - Production CSV data and customer information
+
+verification:
+  backend:
+    - bin/rubocop
+    - bin/bundler-audit
+    - bin/brakeman --quiet --no-pager --exit-on-warn --exit-on-error
+    - bin/rails test
+    - env RAILS_ENV=test bin/rails db:seed:replant
+  frontend:
+    - npm --prefix frontend test
+    - npm --prefix frontend run build
+    - npm --prefix frontend run test:e2e
+  documentation:
+    - Validate docs/openapi.yml
+    - Confirm every new variable is present in .env.example
+    - Confirm operations and rollback notes are current
