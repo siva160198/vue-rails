@@ -18,6 +18,7 @@ const router = useRouter()
 const auth = useAuth()
 const password = ref('')
 const code = ref('')
+const recoveryMode = ref(false)
 const challenge = ref('')
 const busy = ref(false)
 const form = ref(null)
@@ -37,7 +38,7 @@ function startCooldown(seconds) {
 }
 onBeforeUnmount(() => clearInterval(cooldownTimer))
 
-function restart() { if (!busy.value) { challenge.value = ''; code.value = ''; errors.clearErrors() } }
+function restart() { if (!busy.value) { challenge.value = ''; code.value = ''; recoveryMode.value = false; errors.clearErrors() } }
 
 async function resend() {
   if (busy.value || resendIn.value > 0) return
@@ -57,6 +58,7 @@ async function unlock() {
   if (!await errors.validate({ [field]: () => (challenge.value ? code.value : password.value) ? '' : t('validation.required') }, form.value)) {
     toast.warning(t('validation.fix_fields')); return
   }
+  if (busy.value) return
   busy.value = true
   try {
     const account = lockedAccount.value
@@ -115,10 +117,10 @@ function leave() {
         <TextInput v-model="password" name="password" type="password" autocomplete="current-password" :disabled="busy" @input="errors.clearError('password')" />
       </FormField>
       <FormField v-else :label="t('auth.otp')" :help="t('auth.otp_or_recovery')" :error="errors.errorFor('code')">
-        <OtpInput allow-recovery v-model="code" name="code" :disabled="busy" @input="errors.clearError('code')" />
+        <OtpInput allow-recovery @recovery-change="recoveryMode = $event" v-model="code" name="code" :disabled="busy" @input="errors.clearError('code')" />
       </FormField>
       <TurnstileInput v-if="captchaSiteKey && !challenge" ref="captcha" :site-key="captchaSiteKey" @verified="captchaToken = $event" @expired="captchaToken = ''" />
-      <AsyncButton type="submit" :loading="busy" :disabled="Boolean(captchaSiteKey && !challenge && !captchaToken)" :loading-text="t('auth.verifying')" class="w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white">{{ t('auth.unlock') }}</AsyncButton>
+      <AsyncButton v-if="!challenge || recoveryMode" type="submit" :loading="busy" :disabled="Boolean(captchaSiteKey && !challenge && !captchaToken)" :loading-text="t('auth.verifying')" class="w-full rounded-xl bg-brand-500 px-4 py-3 font-semibold text-white">{{ t('auth.unlock') }}</AsyncButton>
       <div v-if="challenge" class="flex items-center justify-between text-sm">
         <button type="button" :disabled="busy" class="text-gray-500" @click="restart">{{ t('common.back') }}</button>
         <AsyncButton :loading="busy" :disabled="resendIn > 0" :loading-text="t('auth.resending')" class="text-brand-500" @click="resend">{{ resendIn > 0 ? t('auth.resend_countdown', { seconds: resendIn }) : t('auth.resend') }}</AsyncButton>

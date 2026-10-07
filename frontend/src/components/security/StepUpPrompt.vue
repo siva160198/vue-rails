@@ -46,6 +46,6 @@ async function submit() {
     <p class="text-sm text-gray-600 dark:text-gray-300">{{ t("security.step_up_hint") }}</p>
     <FormField v-if="!challenge" :label="t('security.current_password')" :error="errors.errorFor('current_password')"><TextInput v-model="form.current_password" name="current_password" type="password" autocomplete="current-password" :disabled="loading" @input="errors.clearError('current_password')" /></FormField>
     <FormField v-else :label="t('auth.otp')" :help="t('security.totp_or_email_hint')" :error="errors.errorFor('code')"><OtpInput v-model="form.code" name="code" :disabled="loading" @input="errors.clearError('code')" /></FormField>
-    <div class="flex justify-end gap-2"><AsyncButton type="button" class="rounded-lg border border-gray-200 px-3 py-2 text-sm" :disabled="loading" @click="cancel">{{ t("common.cancel") }}</AsyncButton><AsyncButton type="submit" :loading="loading" class="rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white">{{ t(challenge ? "common.verify" : "common.continue") }}</AsyncButton></div>
+    <div class="flex justify-end gap-2"><AsyncButton type="button" class="rounded-lg border border-gray-200 px-3 py-2 text-sm" :disabled="loading" @click="cancel">{{ t("common.cancel") }}</AsyncButton><AsyncButton v-if="!challenge" type="submit" :loading="loading" class="rounded-lg bg-brand-500 px-3 py-2 text-sm font-semibold text-white">{{ t(challenge ? "common.verify" : "common.continue") }}</AsyncButton></div>
   </form>
 </template>

@@ -68,7 +68,7 @@ async function register() {
       toast.info(t("auth.otp_sent", { email: response.email_hint }));
     }
   } catch (requestError) {
-    await applyApiError(requestError, registrationForm.value); toast.error(requestError.message);
+    await applyApiError(requestError, registrationForm.value, "code"); toast.error(requestError.message);
   } finally {
     loading.value = false;
   }
@@ -77,6 +77,7 @@ async function register() {
 async function verifyOtp() {
   if (loading.value) return;
   const valid = await validate({ code: () => /^\d{6}$/.test(code.value) ? "" : t("validation.otp") }, registrationForm.value);
+  if (loading.value || resendLoading.value) return;
   if (!valid) { toast.warning(t("validation.fix_fields")); return; }
   loading.value = true;
   try {
@@ -195,14 +196,14 @@ function validateRegistration() {
           <OtpInput
             v-model="code"
             name="code"
-            :disabled="loading"
+            :disabled="loading || resendLoading"
             @input="clearError('code')"
           />
         </FormField>
       </div>
 
       <ToggleInput v-if="challengeToken && trustDeviceAvailable" v-model="trustDevice" class="mt-5" :disabled="loading" :label="t('auth.trust_device')" :hint="t('auth.trust_device_hint')" />
-      <AsyncButton
+      <AsyncButton v-if="!challengeToken"
         type="submit"
         :loading="loading"
         :disabled="resendLoading"

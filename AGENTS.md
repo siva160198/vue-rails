@@ -435,7 +435,11 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 - All six-digit email/TOTP controls must use OtpInput with FormField and a single string
   v-model. Preserve leading zeros, paste/autofill, keyboard focus, field errors, and disabled
   states. Enable `allowRecovery` only where the endpoint accepts recovery codes; never
-  auto-submit a completed code or store codes in browser storage.
+  store codes in browser storage. OtpInput automatically submits its enclosing form once
+  six numeric digits are completed by typing, paste or autofill. OTP-only verification
+  has no submit button; recovery-code mode retains an explicit submit button. Disable
+  inputs during requests, show the shared spinner, preserve inline errors and toast,
+  and never retry a failed code automatically. All future OTP forms follow this pattern.
 
 - TailAdmin is the authoritative design system for every visual asset, page, layout,
   component, form, table, modal, dropdown, navigation element, icon treatment, loading

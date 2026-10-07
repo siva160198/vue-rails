@@ -69,7 +69,6 @@ test('member can register and verify email with OTP', async ({ page }) => {
   const mail = await waitForNewMail(beforeMail)
   const code = mail.match(/\b\d{6}\b/)[0]
   await page.getByLabel('Kode OTP').fill(code)
-  await page.getByRole('button', { name: 'Verifikasi dan masuk' }).click()
 
   await expect(page).toHaveURL('/')
 
@@ -89,7 +88,6 @@ test('admin can login with password and email OTP', async ({ page }) => {
   const mail = await waitForNewMail(beforeMail)
   const code = mail.match(/\b\d{6}\b/)[0]
   await page.getByLabel('Kode OTP').fill(code)
-  await page.getByRole('button', { name: 'Verifikasi', exact: true }).click()
 
   await expect(page).toHaveURL('/admin')
   await expect(page.getByRole('heading', { name: 'Dasbor' })).toBeVisible()
@@ -159,7 +157,6 @@ test('admin can login with password and email OTP', async ({ page }) => {
   await lockDialog.getByRole('button', { name: 'Buka sesi', exact: true }).click()
   const unlockMail = await waitForNewMail(beforeUnlockMail)
   await lockDialog.getByLabel('Kode OTP').fill(unlockMail.match(/\b\d{6}\b/)[0])
-  await lockDialog.getByRole('button', { name: 'Buka sesi', exact: true }).click()
   await expect(lockDialog).not.toBeVisible()
   await expect(page).toHaveURL('/admin/users')
 
@@ -175,7 +172,6 @@ test('admin can login with password and email OTP', async ({ page }) => {
   await lockDialog.getByRole('button', { name: 'Buka sesi', exact: true }).click()
   const draftUnlockMail = await waitForNewMail(beforeDraftUnlock)
   await lockDialog.getByLabel('Kode OTP').fill(draftUnlockMail.match(/\b\d{6}\b/)[0])
-  await lockDialog.getByRole('button', { name: 'Buka sesi', exact: true }).click()
   await expect(lockDialog).not.toBeVisible()
   await expect(personalDialog.getByLabel('Nama depan')).toHaveValue('Unsaved draft')
   await personalDialog.getByRole('button', { name: 'Batal', exact: true }).click()

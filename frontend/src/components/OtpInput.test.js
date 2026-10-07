@@ -1,5 +1,5 @@
 import { mount } from '@vue/test-utils'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import axe from 'axe-core'
 import OtpInput from './OtpInput.vue'
 import FormField from './FormField.vue'
@@ -12,12 +12,40 @@ function create(props = {}) {
   return wrapper
 }
 describe('OtpInput', () => {
-  it('distributes autofill and preserves leading zeroes without auto-submitting', async () => {
+  it('distributes autofill and preserves leading zeroes', async () => {
     const wrapper = create()
     await wrapper.find('input').setValue('012345')
     expect(wrapper.findAll('input').map(input => input.element.value).join('')).toBe('012345')
     expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['012345'])
     expect(wrapper.emitted('submit')).toBeUndefined()
+  })
+  it('submits the enclosing form once on completion, not on rerender or repeated autofill', async () => {
+    const wrapper = create()
+    const form = document.createElement('form')
+    document.body.append(form)
+    form.append(wrapper.element)
+    const submit = vi.spyOn(form, 'requestSubmit').mockImplementation(() => {})
+    await wrapper.find('input').setValue('01234')
+    expect(submit).not.toHaveBeenCalled()
+    await wrapper.find('input').setValue('012345')
+    expect(submit).toHaveBeenCalledTimes(1)
+    await wrapper.find('input').setValue('012345')
+    await wrapper.setProps({ disabled: true })
+    await wrapper.setProps({ disabled: false })
+    expect(submit).toHaveBeenCalledTimes(1)
+    await wrapper.findAll('input')[5].trigger('keydown', { key: 'Backspace' })
+    await wrapper.findAll('input')[5].setValue('6')
+    expect(submit).toHaveBeenCalledTimes(2)
+    form.remove()
+  })
+  it('never auto-submits recovery codes', async () => {
+    const wrapper = create({ allowRecovery: true })
+    const form = document.createElement('form')
+    form.append(wrapper.element)
+    const submit = vi.spyOn(form, 'requestSubmit').mockImplementation(() => {})
+    await wrapper.find('input').setValue('abcdef1234')
+    expect(wrapper.emitted('recovery-change')).toEqual([[true]])
+    expect(submit).not.toHaveBeenCalled()
   })
   it('supports typing, arrow keys and backspace', async () => {
     const wrapper = create()

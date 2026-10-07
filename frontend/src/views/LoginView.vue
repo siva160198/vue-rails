@@ -21,6 +21,7 @@ const { setUser, logout } = useAuth();
 const email = ref("");
 const password = ref("");
 const code = ref("");
+const recoveryMode = ref(false);
 const trustDevice = ref(false);
 const trustDeviceAvailable = ref(false);
 const challengeToken = ref("");
@@ -124,6 +125,7 @@ async function passkeyLogin() {
 async function verifyOtp() {
   if (loading.value) return;
   const valid = await formErrors.validate({ code: () => /^\d{6}$|^[a-f0-9]{10}$/.test(code.value) ? "" : t("validation.otp_or_recovery") }, loginForm.value);
+  if (loading.value || resendLoading.value) return;
   if (!valid) { toast.warning(t("validation.fix_fields")); return; }
   loading.value = true;
   try {
@@ -163,6 +165,7 @@ async function resendOtp() {
 }
 
 function restartLogin() {
+  recoveryMode.value = false;
   window.clearInterval(cooldownTimer);
   resendIn.value = 0;
   challengeToken.value = "";
@@ -233,16 +236,16 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer));
       </div>
       <div v-else class="mt-8">
         <FormField :label="t('auth.otp')" :help="t('auth.otp_or_recovery')" :error="formErrors.errorFor('code')">
-          <OtpInput allow-recovery
+          <OtpInput allow-recovery @recovery-change="recoveryMode = $event"
             v-model="code"
             name="code"
-            :disabled="loading"
+            :disabled="loading || resendLoading"
             @input="formErrors.clearError('code')"
           />
         </FormField>
       </div>
       <ToggleInput v-if="challengeToken && trustDeviceAvailable" v-model="trustDevice" class="mt-5" :disabled="loading" :label="t('auth.trust_device')" :hint="t('auth.trust_device_hint')" />
-      <AsyncButton
+      <AsyncButton v-if="!challengeToken || recoveryMode"
         type="submit"
         :loading="loading"
         :disabled="resendLoading || Boolean(captchaSiteKey && !captchaToken)"

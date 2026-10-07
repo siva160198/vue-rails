@@ -35,7 +35,6 @@ describe("ProfileSecurityEditor", () => {
     await stepUpForm.trigger("submit");
     await flushPromises();
     await stepUpForm.get('input[name="code"]').setValue("123456");
-    await stepUpForm.trigger("submit");
     await flushPromises();
 
     expect(apiFetch).toHaveBeenCalledWith("/api/v1/account_security/password", expect.objectContaining({ method: "PATCH" }));
@@ -50,7 +49,6 @@ describe("ProfileSecurityEditor", () => {
     await wrapper.get("form").trigger("submit");
     await flushPromises();
     await wrapper.get("input").setValue("123456");
-    await wrapper.get("form").trigger("submit");
     await flushPromises();
 
     expect(apiFetch).toHaveBeenCalledTimes(2);
@@ -64,7 +62,6 @@ describe("ProfileSecurityEditor", () => {
     await wrapper.get("form").trigger("submit");
     await flushPromises();
     await wrapper.get("input").setValue("123456");
-    await wrapper.get("form").trigger("submit");
     await flushPromises();
 
     expect(wrapper.text()).toContain("code-one");
