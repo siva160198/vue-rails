@@ -1,0 +1,15 @@
+# Copy outside the public repository, chmod 0600, and attach real private evidence.
+# Dates are ISO strings. These placeholders intentionally FAIL bin/production_check.
+scope_approved_by: null
+security_owner: null
+operations_owner: null
+risk_review_approved_by: null
+risks_accepted: false
+audit_sink_tested_on: null
+alert_delivery_tested_on: null
+offsite_backup_verified_on: null
+restore_drill_on: null
+next_review_on: null
+evidence_links: []
+rpo_minutes: null
+rto_minutes: null

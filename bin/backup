@@ -2,17 +2,37 @@
 require "fileutils"
 require "open3"
 require "time"
+require "json"
+require "tempfile"
+require_relative "../lib/offsite_backup"
+require_relative "../lib/postgres_command"
 
 backup_dir = File.expand_path(ENV.fetch("BACKUP_DIRECTORY", "../backups"), __dir__)
 retention_days = Integer(ENV.fetch("BACKUP_RETENTION_DAYS", "14"), 10)
 database_url = ENV.fetch("DATABASE_URL")
 FileUtils.mkdir_p(backup_dir, mode: 0o700)
-timestamp = Time.now.utc.strftime("%Y%m%dT%H%M%SZ")
+timestamp = "#{Time.now.utc.strftime('%Y%m%dT%H%M%SZ')}-#{SecureRandom.hex(4)}"
 target = File.join(backup_dir, "vue_rails-#{timestamp}.dump")
 
-command = [ "pg_dump", "--format=custom", "--no-owner", "--no-acl", "--file", target, database_url ]
-abort "Backup failed" unless system(*command)
+File.open(target, File::WRONLY | File::CREAT | File::EXCL, 0o600) { }
+arguments = [ "--format=custom", "--no-owner", "--no-acl", "--file", target ]
+abort "Backup failed" unless PostgresCommand.run("pg_dump", arguments, database_url: database_url)
 File.chmod(0o600, target)
+status = { local_completed_at: Time.now.utc.iso8601 }
+if ENV["OFFSITE_BACKUP_BUCKET"].to_s != ""
+  result = OffsiteBackup.new.upload(target)
+  status.merge!(offsite_completed_at: result[:completed_at], sha256: result[:sha256])
+end
+if ENV["BACKUP_STATUS_FILE"].to_s != ""
+  status_path = File.expand_path(ENV.fetch("BACKUP_STATUS_FILE"))
+  Tempfile.create([ "backup-status", ".json" ], File.dirname(status_path)) do |file|
+    file.chmod(0o600)
+    file.write(JSON.generate(status))
+    file.flush
+    file.fsync
+    File.rename(file.path, status_path)
+  end
+end
 
 cutoff = Time.now - (retention_days * 86_400)
 Dir.glob(File.join(backup_dir, "vue_rails-*.dump")).each do |path|

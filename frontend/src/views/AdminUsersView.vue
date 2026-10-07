@@ -34,6 +34,7 @@ const createFormElement = ref(null);
 const createErrors = useFormErrors();
 const pendingSecureCreate = ref(false);
 const newUser = ref(null);
+const createSnapshot = ref(null);
 let modalRequestSequence = 0;
 const { user: admin, can } = useAuth();
 const {
@@ -89,6 +90,7 @@ async function openCreateModal() {
       login_otp_required: true,
     };
     normalizeOtpForRole(newUser.value);
+    createSnapshot.value = snapshot(newUser.value);
   } catch (requestError) {
     createOpen.value = false;
     toast.error(requestError.message);
@@ -287,6 +289,7 @@ async function finishSecureUser(token) { const target = pendingSecureUser.value;
       :title="t('users.edit_title')"
       :hint="editingUser?.email_address"
       :loading="modalLoading"
+      :dirty="Boolean(hasUserChanges)"
       :close-disabled="Boolean(editingUser && savingUserIds.has(editingUser.id))"
       size="md"
       @close="closeEditModal"
@@ -302,14 +305,11 @@ async function finishSecureUser(token) { const target = pendingSecureUser.value;
             <FormField :label="t('users.role')" :error="editErrors.errorFor('role')">
               <SelectInput
                 v-model="editingUser.role"
+                :options="roles.map(role => ({ value: role.key, label: role.name }))"
                 name="role"
                 :disabled="savingUserIds.has(editingUser.id)"
                 @change="normalizeOtpForRole(editingUser); editErrors.clearError('role')"
-              >
-                <option v-for="role in roles" :key="role.key" :value="role.key">
-                  {{ role.name }}
-                </option>
-              </SelectInput>
+              />
             </FormField>
             <ToggleInput
               v-model="editingUser.active"
@@ -324,12 +324,12 @@ async function finishSecureUser(token) { const target = pendingSecureUser.value;
               :disabled="savingUserIds.has(editingUser.id) || roleRequiresOtp(editingUser.role)"
             />
       </form>
-      <template #footer>
+      <template #footer="{ requestClose }">
             <button
               type="button"
               :disabled="editingUser && savingUserIds.has(editingUser.id)"
               class="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              @click="closeEditModal"
+              @click="requestClose"
             >
               {{ t("common.cancel") }}
             </button>
@@ -350,6 +350,7 @@ async function finishSecureUser(token) { const target = pendingSecureUser.value;
       :title="t('users.add')"
       :hint="t('users.add_hint')"
       :loading="createLoading"
+      :dirty="Boolean(newUser && createSnapshot && hasChanges(newUser, createSnapshot))"
       :close-disabled="creating"
       size="md"
       @close="closeCreateModal"
@@ -370,19 +371,17 @@ async function finishSecureUser(token) { const target = pendingSecureUser.value;
           <TextInput v-model="newUser.phone" name="phone" type="tel" maxlength="30" :disabled="creating" @input="createErrors.clearError('phone')" />
         </FormField>
         <FormField :label="t('users.role')" :error="createErrors.errorFor('role')">
-          <SelectInput v-model="newUser.role" name="role" :disabled="creating" @change="normalizeOtpForRole(newUser); createErrors.clearError('role')">
-            <option v-for="role in roles" :key="role.key" :value="role.key">{{ role.name }}</option>
-          </SelectInput>
+          <SelectInput v-model="newUser.role" :options="roles.map(role => ({ value: role.key, label: role.name }))" name="role" :disabled="creating" @change="normalizeOtpForRole(newUser); createErrors.clearError('role')" />
         </FormField>
         <ToggleInput v-model="newUser.active" :label="t('users.account_status')" :hint="t('users.account_status_hint')" :disabled="creating" />
         <ToggleInput v-model="newUser.login_otp_required" :label="t('users.login_otp')" :hint="roleRequiresOtp(newUser.role) ? t('users.otp_required_role_hint') : t('users.otp_hint')" :disabled="creating || roleRequiresOtp(newUser.role)" />
       </form>
-      <template #footer>
-        <button type="button" :disabled="creating" class="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" @click="closeCreateModal()">{{ t("common.cancel") }}</button>
+      <template #footer="{ requestClose }">
+        <button type="button" :disabled="creating" class="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800" @click="requestClose">{{ t("common.cancel") }}</button>
         <AsyncButton form="create-user-form" type="submit" :loading="creating" :loading-text="t('users.adding')" class="rounded-lg bg-brand-500 px-5 py-2.5 text-sm font-semibold text-white hover:bg-brand-600"><Plus :size="16" />{{ t("users.add") }}</AsyncButton>
       </template>
     </AppModal>
-    <AppModal :open="Boolean(pendingSecureUser)" :title="t('security.additional_verification')" size="md" @close="pendingSecureUser = null"><StepUpPrompt v-if="pendingSecureUser" purpose="admin_user_update" @verified="finishSecureUser" @cancel="pendingSecureUser = null" /></AppModal>
-    <AppModal :open="pendingSecureCreate" :title="t('security.additional_verification')" size="md" @close="pendingSecureCreate = false"><StepUpPrompt v-if="pendingSecureCreate" purpose="admin_user_create" @verified="finishSecureCreate" @cancel="pendingSecureCreate = false" /></AppModal>
+    <AppModal :open="Boolean(pendingSecureUser)" :close-disabled="Boolean(pendingSecureUser && savingUserIds.has(pendingSecureUser.id))" :title="t('security.additional_verification')" size="md" @close="pendingSecureUser = null"><StepUpPrompt v-if="pendingSecureUser" purpose="admin_user_update" @verified="finishSecureUser" @cancel="pendingSecureUser = null" /></AppModal>
+    <AppModal :open="pendingSecureCreate" :close-disabled="creating" :title="t('security.additional_verification')" size="md" @close="pendingSecureCreate = false"><StepUpPrompt v-if="pendingSecureCreate" purpose="admin_user_create" @verified="finishSecureCreate" @cancel="pendingSecureCreate = false" /></AppModal>
   </AdminLayout>
 </template>

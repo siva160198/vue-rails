@@ -123,6 +123,7 @@ module Api
         return render_api_error("INVALID_OTP", status: :unauthorized, details: { code: [ I18n.t("api.errors.invalid_otp") ] }) unless TotpAuthenticator.valid?(Current.user.pending_totp_secret, params[:code])
 
         Current.user.update!(totp_secret: Current.user.pending_totp_secret, pending_totp_secret: nil, totp_enabled_at: Time.current)
+        invalidate_authentication_trust!
         AuditLog.record!(action: "account.totp_enabled", actor: Current.user, auditable: Current.user, request: request)
         SecurityNotificationMailer.with(user: Current.user, security_event: "totp_enabled").security_setting_changed.deliver_later
         render json: { totp_enabled: true }
@@ -137,6 +138,7 @@ module Api
         end
 
         Current.user.update!(totp_secret: nil, totp_enabled_at: nil)
+        invalidate_authentication_trust!
         AuditLog.record!(action: "account.totp_disabled", actor: Current.user, auditable: Current.user, request: request)
         SecurityNotificationMailer.with(user: Current.user, security_event: "totp_disabled").security_setting_changed.deliver_later
         render json: { totp_enabled: false }
@@ -177,7 +179,7 @@ module Api
         end
 
         def user_json(user)
-          user.as_json(only: %i[id email_address role first_name last_name]).merge(permissions: user.permission_keys, avatar_url: user.avatar.attached? ? "/api/v1/profile/avatar?v=#{user.avatar.blob_id}" : nil)
+          user.as_json(only: %i[id email_address role first_name last_name]).merge(unlock_token: session_unlock_token(user), permissions: user.permission_keys, avatar_url: user.avatar.attached? ? "/api/v1/profile/avatar?v=#{user.avatar.blob_id}" : nil)
         end
 
         def email_revert_token(user, raw_token)

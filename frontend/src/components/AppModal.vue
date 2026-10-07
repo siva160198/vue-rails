@@ -1,7 +1,9 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, ref, useId, useSlots, watch } from "vue";
+import { computed, nextTick, onBeforeUnmount, provide, reactive, ref, useId, useSlots, watch } from "vue";
 import { LoaderCircle, X } from "@lucide/vue";
 import { t } from "../services/i18n";
+import { lockedAccount } from "../services/sessionLock";
+import { modalGuardKey } from '../composables/useModalGuard';
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -10,6 +12,8 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   closeDisabled: { type: Boolean, default: false },
   size: { type: String, default: "lg" },
+  lockScreen: { type: Boolean, default: false },
+  dirty: { type: Boolean, default: false },
 });
 const emit = defineEmits(["close"]);
 const slots = useSlots();
@@ -18,17 +22,30 @@ const modalId = Symbol("modal");
 const sizes = { sm: "max-w-md", md: "max-w-xl", lg: "max-w-3xl", xl: "max-w-5xl" };
 const widthClass = computed(() => sizes[props.size] || sizes.lg);
 const dialogElement = ref(null);
+const discardOpen = ref(false);
+const guardStates = reactive(new Map());
+const blocked = computed(() => props.closeDisabled || props.loading || [...guardStates.values()].some(state => state.busy));
+const dirty = computed(() => props.dirty || [...guardStates.values()].some(state => state.dirty));
+provide(modalGuardKey, { states: guardStates, requestClose });
+defineExpose({ requestClose });
 let previouslyFocusedElement = null;
 
 const modalStack = globalThis.__vue_railsModalStack || [];
 globalThis.__vue_railsModalStack = modalStack;
 
 function isTopModal() {
-  return modalStack.at(-1) === modalId;
+  return !lockedAccount.value || props.lockScreen ? modalStack.at(-1) === modalId : false;
 }
 
 function requestClose() {
-  if (!props.closeDisabled && !props.loading && isTopModal()) emit("close");
+  if (blocked.value || !isTopModal()) return;
+  if (dirty.value) discardOpen.value = true;
+  else emit("close");
+}
+
+function discard() {
+  discardOpen.value = false;
+  if (props.open && !blocked.value) emit('close');
 }
 
 function handleKeydown(event) {
@@ -59,6 +76,7 @@ function handleKeydown(event) {
 watch(
   () => props.open,
   async (open, wasOpen) => {
+    if (!open) discardOpen.value = false;
     const index = modalStack.indexOf(modalId);
     if (open && index === -1) {
       previouslyFocusedElement = document.activeElement;
@@ -82,9 +100,11 @@ watch(
 document.addEventListener("keydown", handleKeydown);
 onBeforeUnmount(() => {
   document.removeEventListener("keydown", handleKeydown);
+  const wasTop = modalStack.at(-1) === modalId;
   const index = modalStack.indexOf(modalId);
   if (index >= 0) modalStack.splice(index, 1);
   document.body.classList.toggle("overflow-hidden", modalStack.length > 0);
+  if (wasTop && previouslyFocusedElement?.isConnected) previouslyFocusedElement.focus();
 });
 </script>
 
@@ -92,7 +112,9 @@ onBeforeUnmount(() => {
   <Teleport to="body">
     <div
       v-if="open"
-      class="fixed inset-0 z-[240] flex items-center justify-center bg-gray-950/50 p-4 backdrop-blur-sm"
+      :inert="discardOpen || (Boolean(lockedAccount) && !lockScreen)"
+      :class="lockScreen ? 'z-[260]' : 'z-[240]'"
+      class="fixed inset-0 flex items-center justify-center bg-gray-950/50 p-4 backdrop-blur-sm"
       @click.self="requestClose"
     >
       <section
@@ -121,7 +143,7 @@ onBeforeUnmount(() => {
           </div>
           <button
             type="button"
-            :disabled="closeDisabled || loading"
+            :disabled="blocked"
             :aria-label="t('common.close')"
             class="rounded-lg p-2 text-gray-500 hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-60 dark:hover:bg-gray-800"
             @click="requestClose"
@@ -149,9 +171,16 @@ onBeforeUnmount(() => {
           v-if="!loading && slots.footer"
           class="flex justify-end gap-3 border-t border-gray-200 p-4 dark:border-gray-800"
         >
-          <slot name="footer" />
+          <slot name="footer" :request-close="requestClose" />
         </footer>
       </section>
     </div>
   </Teleport>
+  <AppModal v-if="discardOpen" :open="discardOpen" :title="t('modal.discard_title')" size="sm" :close-disabled="blocked" @close="discardOpen = false">
+    <p class="text-sm text-gray-500">{{ t('modal.discard_hint') }}</p>
+    <template #footer>
+      <button type="button" class="rounded-lg border border-gray-200 px-4 py-2.5 text-sm dark:border-gray-700 dark:text-gray-200" @click="discardOpen = false">{{ t('modal.keep_editing') }}</button>
+      <button type="button" :disabled="blocked" class="rounded-lg bg-error-600 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50" @click="discard">{{ t('modal.discard') }}</button>
+    </template>
+  </AppModal>
 </template>

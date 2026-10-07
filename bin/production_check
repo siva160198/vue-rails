@@ -1,0 +1,10 @@
+#!/usr/bin/env ruby
+require_relative "../lib/deployment_evidence"
+path = ARGV.first
+abort "Usage: bin/production_check /private/deployment-evidence.yml (read-only, no deployment)" unless path && File.file?(path)
+abort "Evidence must be private (mode 0600)" unless (File.stat(path).mode & 0o077).zero? && !File.symlink?(path)
+document = YAML.safe_load_file(path, permitted_classes: [ Date ], aliases: false)
+abort "Invalid evidence document" unless document.is_a?(Hash)
+problems = DeploymentEvidence.problems(document)
+abort "Incomplete or stale deployment evidence: #{problems.join(', ')}" if problems.any?
+puts "Evidence checklist complete; this does not certify ISO compliance or prove the linked evidence."

@@ -1,0 +1,80 @@
+import { mount } from '@vue/test-utils'
+import { afterEach, describe, expect, it } from 'vitest'
+import axe from 'axe-core'
+import OtpInput from './OtpInput.vue'
+import FormField from './FormField.vue'
+
+const wrappers = []
+afterEach(() => { wrappers.forEach(wrapper => wrapper.unmount()); wrappers.length = 0 })
+function create(props = {}) {
+  const wrapper = mount(OtpInput, { attachTo: document.body, props: { ...props, 'onUpdate:modelValue': value => wrapper.setProps({ modelValue: value }) } })
+  wrappers.push(wrapper)
+  return wrapper
+}
+describe('OtpInput', () => {
+  it('distributes autofill and preserves leading zeroes without auto-submitting', async () => {
+    const wrapper = create()
+    await wrapper.find('input').setValue('012345')
+    expect(wrapper.findAll('input').map(input => input.element.value).join('')).toBe('012345')
+    expect(wrapper.emitted('update:modelValue').at(-1)).toEqual(['012345'])
+    expect(wrapper.emitted('submit')).toBeUndefined()
+  })
+  it('supports typing, arrow keys and backspace', async () => {
+    const wrapper = create()
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('1')
+    expect(document.activeElement).toBe(inputs[1].element)
+    await inputs[1].setValue('2')
+    await inputs[2].trigger('keydown', { key: 'ArrowLeft' })
+    expect(document.activeElement).toBe(inputs[1].element)
+    await inputs[1].trigger('keydown', { key: 'ArrowRight' })
+    expect(document.activeElement).toBe(inputs[2].element)
+    await inputs[2].trigger('keydown', { key: 'Backspace' })
+    expect(wrapper.props('modelValue')).toBe('1')
+    await inputs[0].trigger('keydown', { key: 'Backspace' })
+    expect(wrapper.props('modelValue')).toBe('')
+    await inputs[0].trigger('keydown', { key: 'Backspace' })
+  })
+  it('handles paste, invalid characters and empty boxes without hidden gaps', async () => {
+    const wrapper = create()
+    await wrapper.find('input').trigger('paste', { clipboardData: { getData: () => '01 2345' } })
+    expect(wrapper.props('modelValue')).toBe('012345')
+    await wrapper.setProps({ modelValue: '' })
+    await wrapper.findAll('input')[4].setValue('x7')
+    expect(wrapper.props('modelValue')).toBe('7')
+    await wrapper.findAll('input')[0].setValue('')
+    expect(wrapper.props('modelValue')).toBe('')
+  })
+  it('accepts recovery codes only when explicitly supported', async () => {
+    const wrapper = create({ allowRecovery: true })
+    await wrapper.find('button').trigger('click')
+    expect(wrapper.findAll('input')).toHaveLength(1)
+    await wrapper.find('input').setValue('ABCDEF1234')
+    expect(wrapper.props('modelValue')).toBe('abcdef1234')
+    await wrapper.find('button').trigger('click')
+    expect(wrapper.props('modelValue')).toBe('')
+    await wrapper.find('input').setValue('abc1234567')
+    expect(wrapper.findAll('input')).toHaveLength(1)
+    expect(wrapper.props('modelValue')).toBe('abc1234567')
+    const numericOnly = create()
+    expect(numericOnly.find('button').exists()).toBe(false)
+    await numericOnly.find('input').setValue('abc1234567')
+    expect(numericOnly.props('modelValue')).toBe('123456')
+  })
+  it('disables every code control while a request is active', async () => {
+    const wrapper = create({ disabled: true, allowRecovery: true })
+    expect(wrapper.findAll('input').every(input => input.element.disabled)).toBe(true)
+    expect(wrapper.find('button').element.disabled).toBe(true)
+    await wrapper.find('input').setValue('123456')
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+  it('preserves field labels/errors and passes axe', async () => {
+    const wrapper = mount(FormField, { attachTo: document.body, props: { label: 'OTP', error: 'Invalid code' }, slots: { default: OtpInput } })
+    wrappers.push(wrapper)
+    const first = wrapper.find('input')
+    expect(wrapper.find('label').attributes('for')).toBe(first.attributes('id'))
+    expect(first.attributes('aria-invalid')).toBe('true')
+    expect(first.attributes('aria-describedby')).toContain('error')
+    expect((await axe.run(wrapper.element, { rules: { 'color-contrast': { enabled: false } } })).violations).toEqual([])
+  })
+})

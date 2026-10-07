@@ -19,6 +19,45 @@ default.
 
 ## Architecture
 
+- Generic opt-in import/sync services are documented in `docs/data-pipeline-recipes.md`.
+  Register adapter factories through `DataPipelines::Registry` in code/to_prepare only;
+  never constantize request input or enable a provider/import menu without business scope.
+  New endpoint/page adapters must include ownership/Pundit, permissions and production
+  migration/seeds, rate limits, request envelope bounds, CSRF, OpenAPI, bilingual UI and
+  allowed/forbidden tests. Jobs recheck authorization before each bounded batch/page.
+- Import runs use encrypted bounded sources/rows, a per-owner submission idempotency key,
+  a three-pending-run cap, exact approved headers and a deterministic duplicate policy.
+  Limit source to 1 MiB, rows to 2,000, columns to 30, cells to 4,000 bytes and jobs to
+  50 rows. Commit domain SQL writes and row outcome in one primary transaction; never
+  perform unbounded/remote side effects in that callback. Export only formula-neutralized
+  CSV, including fabricated samples and code-only failures; never export raw PII by default.
+- IntegrationConnection credentials/cursors and cached items must remain encrypted.
+  Fetch one <=100-item page per job, upsert unique provider IDs and advance the opaque
+  cursor atomically. Use the approved HTTPS/DNS-pinned bounded transport; no arbitrary
+  client URLs, redirects, private addresses or environment proxy bypass. Retries enqueue
+  later jobs (three attempts; bounded Retry-After), never sleep workers. Expired credentials
+  require reconnection. Keep OAuth/consent/provider scopes in the derived project.
+- Pipeline maintenance checks <=50 stale records per type and permits <=3 recovery
+  enqueues before terminal failure. Retention deletes in batches. Dedicated imports,
+  integrations and maintenance workers must not starve mailers/default; review host
+  memory and DB connection capacity before increasing concurrency.
+- Reporting must use approved scoped relations, whitelisted timestamp/filter fields,
+  PostgreSQL aggregation and the reusable Reporting date/comparison services. Bound
+  ranges to 366 inclusive UTC days, use half-open SQL bounds and equal previous periods,
+  handle zero baselines without infinity, reconcile summaries, index source timestamps
+  and cache dashboard queries briefly. URL query state uses reportContext; filters and
+  charts reuse ReportDateFilter/ReportLineChart and abort/discard stale requests.
+- Apply `docs/security/personal-data.md` when adding fields. Explicitly document plaintext
+  searchable fields; do not claim all PII is encrypted. Never serialize pipeline models
+  directly, log rows/credentials or store them in browser/queue arguments. Root-key rotation
+  needs reviewed historical-key/backup compatibility and tested bounded re-encryption.
+- Operational tooling is opt-in: OffsiteBackup uses a separate role, private SSE-KMS bucket
+  and verified metadata; it does not prove a restore. Collector configuration is a template,
+  not an active immutable sink/alert channel. Enabled monitors need a private shared backup
+  status file. Run production_check with private current owner/approval/drill evidence, and
+  require independent uptime, archive reconciliation, restore and RPO/RTO verification.
+  Never fabricate owners/evidence or mark ISMS operational controls implemented from code alone.
+
 - Rails API code is under `app/controllers/api/v1`.
 - Admin API endpoints are under `app/controllers/api/v1/admin`.
 - Admin user management and audit logs are exposed under `/api/v1/admin` and
@@ -36,8 +75,12 @@ default.
 - Frontend API requests go through `frontend/src/services/api.js`.
 - Global session-expiry handling is registered once from `main.js` through
   `sessionExpirationCoordinator.js`. Only a `401` carrying the stable
-  `AUTHENTICATION_REQUIRED` code may clear shared auth state, show the localized expiry
-  toast, and redirect to `/login` with the complete current `fullPath` in `redirect`.
+  `AUTHENTICATION_REQUIRED` code may open the blocking TailAdmin session lock when a
+  signed unlock context is available. Keep the page/drafts mounted in memory and inert,
+  abort old requests, reject stale responses, reset CSRF, and never replay writes.
+  Unlock requires the same account's password plus applicable MFA; refresh permissions
+  before allowing interaction. Revoked page access remains locked. Explicit exit/reload
+  may discard drafts. Legacy contexts without an unlock token redirect to `/login`.
   Never treat login `INVALID_CREDENTIALS` or another arbitrary `401` as an expired
   session. Deduplicate concurrent expiry responses and reset the cached CSRF token.
 - Every frontend API request carries a generated `X-Request-ID`. Preserve and expose
@@ -376,6 +419,24 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 
 ## UI and UX Standards
 
+- Editable AppModal forms must pass a reactive `dirty` snapshot or register child state
+  through `useModalGuard()`. Close, backdrop, Escape, and Cancel must all use the shared
+  `requestClose` guard (available in the footer slot); never directly close a dirty form.
+  Confirm discard locally with the nested TailAdmin AppModal, keep drafts on cancellation,
+  and block closing during initial loading or mutation. Successful saves may close directly.
+  Disclosure-only permission pickers remain closable because their selection lives in the
+  parent edit form. Do not put passwords or OTP in snapshots persisted to browser storage.
+- SelectInput accepts `options: [{ value, label, disabled? }]` for local searchable lists.
+  For large collections, supply `loadOptions({ search, limit, signal })`, honor cancellation,
+  whitelist and authorize server searches, and bound results to 50. Search runs only while
+  open after 300 ms debounce and the minimum query length; stale responses never replace
+  current results. Native slot-based selects remain appropriate for small fixed controls
+  such as page size. Do not add Select2, jQuery, or page-specific dropdown implementations.
+- All six-digit email/TOTP controls must use OtpInput with FormField and a single string
+  v-model. Preserve leading zeros, paste/autofill, keyboard focus, field errors, and disabled
+  states. Enable `allowRecovery` only where the endpoint accepts recovery codes; never
+  auto-submit a completed code or store codes in browser storage.
+
 - TailAdmin is the authoritative design system for every visual asset, page, layout,
   component, form, table, modal, dropdown, navigation element, icon treatment, loading
   state, and interaction pattern. Follow the existing TailAdmin template and its reusable
@@ -513,7 +574,18 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 - If an existing account is unverified, show a localized toast, issue a new challenge,
   and take the user directly to verification without creating a duplicate user.
 - A successful OTP verification trusts that browser for one hour using the signed,
-  expiring `otp_trust` cookie. Login during that window must not send another OTP.
+  expiring `otp_trust` cookie plus a separate HTTP-only browser binding. An explicit
+  opt-in after OTP may trust a personal device for 30 fixed days with two independent
+  random cookies, database token digests, atomic rotation, authentication-version and
+  credential/access/browser binding, a 10-device cap, and bounded expired-record cleanup.
+  Password remains required; MFA-required roles and recovery-code logins cannot enroll
+  long-term trust. Revoking a bound session revokes that device; revoke-others removes
+  all long-term trust. Credential/MFA/access changes invalidate trust. Theft of the full
+  browser profile is not prevented by cookie binding; never advertise otherwise.
+- `docs/security/ISMS.md` and `register.yml` are draft risk/asset/control templates,
+  not certification or a complete Annex A SoA. Deployment owners must supply scope,
+  owners, risk scores, approvals, private evidence, operational reviews, and independent
+  audit. Never commit actual sensitive inventories or claim ISO compliance from code.
 - Inactive users with a correct password receive a localized toast directing them to
   `SUPPORT_EMAIL`; wrong credentials must not reveal account status.
 - Password recovery is email-link based. The signed reset token must be validated before
@@ -538,6 +610,12 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
 
 ## Verification
 
+- `bin/ci` must run the existing backend checks plus `npm test --prefix frontend`
+  and `npm run build --prefix frontend`. Keep these frontend checks mandatory when
+  modifying the local CI workflow; frontend remains JavaScript.
+- Local CI checks Node compatibility before setup, runs OpenAPI contract tests once
+  within the Rails suite, and enables Playwright only with `CI_E2E=true`. Keep the
+  GitHub Actions E2E job mandatory; do not silently install browsers from `bin/ci`.
 - Run focused Rails tests while developing, then `bin/rails test` before handoff.
 - For frontend changes, run `npm run build --prefix frontend`.
 - Run `npm test --prefix frontend` for Vue unit/component changes.
@@ -548,9 +626,15 @@ Rails and Vite development servers. Use `--skip-server` when appropriate.
   branch floors. New backend branches and new reusable frontend states require tests so
   coverage does not regress. Coverage artifacts must remain untracked.
 - Run Playwright E2E for authentication or cross-stack flow changes when a browser is available.
+- E2E=true selects dedicated test-only primary/queue databases. Never share Minitest
+  fixture databases with Playwright seed/setup, and never reset development data for tests.
 - For Ruby changes, run `bin/rubocop`.
 - For security-sensitive or dependency changes, also run the security audit
   commands listed above.
+- Security dependency maintenance must use targeted compatible updates and commit-ready
+  lockfiles; inspect resolver changes and rerun audits, relevant tests, coverage, and
+  build/E2E checks. Do not use force upgrades, lower coverage thresholds, disable
+  scanner freshness, or suppress advisories just to make a security gate green.
 - Report any checks that could not be run and why.
 
 ## Important Behavior

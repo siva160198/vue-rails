@@ -31,15 +31,16 @@ module Api
           return render json: { user: user_json(user), unchanged: true } unless user.changed?
           return render_validation_error(user) unless user.valid?
           login_otp_changed = user.will_save_change_to_login_otp_required?
+          access_changed = login_otp_changed || user.will_save_change_to_role? || user.will_save_change_to_active?
           return unless require_admin_dual_control!("admin.user_access", { user_id: user.id, role: user.role, active: user.active, login_otp_required: user.login_otp_required })
           return unless require_step_up!("admin_user_update")
           return render_last_admin_error if removes_last_admin?(user, attributes)
 
           User.transaction do
             user.save!
-            if !user.active? || login_otp_changed
+            if access_changed
               user.sessions.destroy_all
-              user.increment!(:authentication_version) if login_otp_changed
+              user.increment!(:authentication_version)
             end
             AuditLog.record!(
               action: "admin.user_updated",

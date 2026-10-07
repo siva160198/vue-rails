@@ -1,0 +1,17 @@
+#!/usr/bin/env ruby
+require "open3"
+
+begin
+  output, status = Open3.capture2("node", "--version")
+rescue Errno::ENOENT
+  abort "Node.js is missing. Install the version in .nvmrc before running bin/ci."
+end
+
+match = output.strip.match(/\Av(\d+)\.(\d+)\.(\d+)\z/)
+abort "Could not read the Node.js version." unless status.success? && match
+
+major, minor, = match.captures.map(&:to_i)
+supported = (major == 20 && minor >= 19) || (major == 22 && minor >= 12) || major > 22
+abort "Node.js #{output.strip} is unsupported. Use Node 20.19+ (20.x) or 22.12+; .nvmrc specifies the recommended version." unless supported
+
+puts "Node.js #{output.strip} meets the Vite runtime requirement."

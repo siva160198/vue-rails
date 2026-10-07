@@ -53,6 +53,7 @@ id:
     jobs:
       failure_redacted: "Detail error disembunyikan. Gunakan log internal dengan request ID untuk investigasi."
     errors:
+      invalid_report_range: "Pilih rentang tanggal yang valid, maksimal 366 hari dan tidak melewati hari ini."
       payload_too_large: "Ukuran request melebihi batas yang diizinkan."
       avatar_missing: "Pilih foto profil terlebih dahulu."
       avatar_too_large: "Ukuran foto sumber maksimal 10 MB."
@@ -80,6 +81,7 @@ id:
       otp_locked: "Terlalu banyak percobaan. Silakan login kembali."
       otp_resend_too_soon: "Tunggu 60 detik sebelum mengirim ulang OTP."
       invalid_otp_challenge: "Sesi OTP tidak valid atau sudah kedaluwarsa. Silakan login kembali."
+      invalid_unlock_context: "Permintaan buka sesi tidak valid atau kedaluwarsa. Kembali ke login."
       invalid_password_reset_token: "Link reset tidak valid atau sudah kedaluwarsa."
       last_active_admin_required: "Admin aktif terakhir tidak dapat dinonaktifkan atau diturunkan rolenya."
       current_password_invalid: "Password saat ini tidak valid."

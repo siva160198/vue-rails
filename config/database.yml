@@ -21,10 +21,10 @@ development:
 test:
   primary:
     <<: *default
-    database: vue_rails_test
+    database: <%= ENV["E2E"] == "true" ? "vue_rails_e2e" : "vue_rails_test" %>
   queue:
     <<: *default
-    database: vue_rails_test_queue
+    database: <%= ENV["E2E"] == "true" ? "vue_rails_e2e_queue" : "vue_rails_test_queue" %>
     migrations_paths: db/queue_migrate
 
 production:

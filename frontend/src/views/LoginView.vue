@@ -1,4 +1,5 @@
 <script setup>
+import OtpInput from "../components/OtpInput.vue";
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { apiFetch } from "../services/api";
@@ -12,6 +13,7 @@ import TextInput from "../components/TextInput.vue";
 import { authenticateWithPasskey, passkeysSupported } from "../services/passkeys";
 import TurnstileInput from "../components/TurnstileInput.vue";
 import { useFormErrors } from "../services/formErrors";
+import ToggleInput from "../components/ToggleInput.vue";
 
 const route = useRoute();
 const router = useRouter();
@@ -19,6 +21,8 @@ const { setUser, logout } = useAuth();
 const email = ref("");
 const password = ref("");
 const code = ref("");
+const trustDevice = ref(false);
+const trustDeviceAvailable = ref(false);
 const challengeToken = ref("");
 const emailHint = ref("");
 const loading = ref(false);
@@ -66,6 +70,7 @@ async function login() {
       return;
     }
     challengeToken.value = response.challenge_token;
+    trustDeviceAvailable.value = response.trust_device_available === true;
     emailHint.value = response.email_hint;
     startResendCooldown(response.resend_in);
     if (response.account_unverified) {
@@ -127,6 +132,7 @@ async function verifyOtp() {
       body: JSON.stringify({
         challenge_token: challengeToken.value,
         code: code.value,
+        trust_device: trustDevice.value,
       }),
     });
     await completeLogin(user);
@@ -227,22 +233,15 @@ onBeforeUnmount(() => window.clearInterval(cooldownTimer));
       </div>
       <div v-else class="mt-8">
         <FormField :label="t('auth.otp')" :help="t('auth.otp_or_recovery')" :error="formErrors.errorFor('code')">
-          <TextInput
+          <OtpInput allow-recovery
             v-model="code"
             name="code"
             :disabled="loading"
-            type="text"
-            inputmode="text"
-            autocomplete="one-time-code"
-            pattern="([0-9]{6}|[a-f0-9]{10})"
-            maxlength="10"
-            required
-            autofocus
-            class="text-center text-2xl font-bold tracking-[0.45em]"
             @input="formErrors.clearError('code')"
           />
         </FormField>
       </div>
+      <ToggleInput v-if="challengeToken && trustDeviceAvailable" v-model="trustDevice" class="mt-5" :disabled="loading" :label="t('auth.trust_device')" :hint="t('auth.trust_device_hint')" />
       <AsyncButton
         type="submit"
         :loading="loading"

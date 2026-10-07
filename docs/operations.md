@@ -63,3 +63,88 @@ a single global audit lock.
 mail delivery failures, elevated HTTP 5xx responses, database pool saturation, disk usage, and
 backup age. Sentry captures exceptions when configured; infrastructure metrics and uptime alerts
 belong in the chosen hosting provider.
+
+## Optional operational tooling / Tooling production opt-in
+
+No cloud resources, alert destinations, IAM policies, retention locks or production
+services are automatically created/activated by this repository. Set them up in a
+private deployment and record evidence, rather than treating a sample config as proof.
+
+Tidak ada layanan cloud atau alert production yang otomatis aktif. Pilih provider,
+buat IAM/bucket/key secara privat, uji pengiriman dan restore, lalu catat buktinya.
+
+### Backup off-site
+
+`bin/backup` reserves the dump file with mode 0600 before writing. PostgreSQL passwords
+are passed through the child environment, never in pg_dump/pg_restore argv. The dump
+name includes a random suffix; a failed dump/upload never refreshes success evidence.
+
+If `OFFSITE_BACKUP_BUCKET` and `OFFSITE_BACKUP_KMS_KEY_ID` are configured, the existing
+AWS SDK streams/multipart-uploads to a random private key using SSE-KMS, then verifies
+object length, encryption metadata and the uploaded source SHA-256 metadata. This
+metadata check is NOT a restore or end-to-end checksum proof: periodically download
+the object, verify the SHA-256 independently, and restore it into an isolated database.
+Use the AWS default credential/role chain, not frontend/upload credentials. TLS, blocked
+public access, bucket policy, KMS grants, versioning, lifecycle and Object Lock retention
+are provider/operator responsibilities. Review retention locks before enabling them;
+they can make deletion intentionally impossible until expiry. Keep PostgreSQL dumps,
+private avatars/storage, queue state and backup encryption keys in the recovery scope.
+
+`BACKUP_STATUS_FILE` writes an atomic private JSON success record outside the release.
+Its directory must already exist. Mount that private operations volume in the maintenance
+worker if monitoring backup age. Schedule `bin/backup` outside the web process using a
+private service/timer and alert on command failure; keep local pruning only after a
+successful optional upload. Local-only backup does not count as off-site verification.
+
+See [AWS Ruby S3 upload API](https://docs.aws.amazon.com/sdk-for-ruby/v3/api/Aws/S3/Object.html)
+for provider behavior. This starter does not assume an S3-compatible provider supports KMS.
+
+### Audit sink and alert delivery
+
+`docs/operations/vector.example.toml` is an OPTIONAL external collector example, not a
+running service. Export the Rails structured stdout JSON lines into its read-only file
+source (adjust the source to your approved runtime log driver), mount a private durable
+buffer, pin/review a Vector version, validate the config and test it in staging.
+
+The remap allowlists minimal audit/operational event fields and drops other request
+logs. The archive sink uses a separate private SSE-KMS audit bucket; require default
+Object Lock retention, least privilege and an IAM role without delete/retention-bypass
+rights. An approved HTTPS receiver receives only stable operational codes. Secrets
+`AUDIT_LOG_*`/`OPERATIONS_ALERT_*` belong to the collector, never the Vue bundle.
+Test archive restart/replay behavior and duplicated events; consumers deduplicate audit
+records by `audit_id`/digest. Monitor buffer size, dropped events, delivery retries,
+collector heartbeat and on-call acknowledgment independently of the application.
+
+Validate against [Vector's S3 sink reference](https://vector.dev/docs/reference/configuration/sinks/aws_s3/).
+Bucket encryption alone is NOT immutability. Configure retention/IAM and retain evidence.
+
+### Scheduled health and audit checks
+
+`OPERATIONS_MONITOR_ENABLED=true` enables a five-minute maintenance check of database,
+worker heartbeat, queue latency, failed jobs and backup age. Enabling it requires an
+absolute `BACKUP_STATUS_FILE`. Failed checks emit minimal `operational_alert` JSON events,
+deduplicated per code for 15 minutes in shared Rails cache. Configure infrastructure
+uptime/CPU/memory/disk/DB pool metrics separately; a stopped scheduler cannot report its
+own outage. SMTP delivery and provider latency need independent delivery probes.
+
+`AUDIT_INTEGRITY_CHECK_ENABLED=true` enables the nightly HMAC-chain check. Verification
+streams 500 records per batch across chain shards instead of loading the full audit
+table. Schedule it with adequate capacity and export the earliest/latest chain anchors
+privately: retained local chains alone cannot prove a deleted prefix or recover a lost
+root key. An external archive and independent reconciliation are still required.
+
+### Evidence gate and recovery drill
+
+Copy `docs/operations/deployment-evidence.example.yml` OUTSIDE the public repository,
+chmod 0600, fill named owners, approvals, RPO/RTO, current test dates and private evidence.
+Run `bin/production_check /private/deployment-evidence.yml` before promotion. It checks
+completeness/freshness (31 days), risk acceptance and review date; it does not inspect
+provider permissions, certify ISO compliance or authenticate the evidence itself.
+
+At least monthly, download a real off-site object to a private isolated environment,
+verify SHA-256, restore DB and private storage, restore appropriate historical keys,
+run migrations/health/login/mail/queue checks and measure RPO/RTO. Do not reuse production
+email destinations in a recovery drill. Record timestamps, responsible reviewer,
+measured recovery results, failures and follow-up privately. Keep the template ISMS
+register pending until real evidence is reviewed. Never run restore over production
+as an automatic test or fallback.

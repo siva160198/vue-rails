@@ -2,17 +2,25 @@ module Api
   module V1
     class SessionsController < ApplicationController
       class_attribute :captcha_verifier, default: CaptchaVerifier
-      allow_unauthenticated_access only: %i[create verify_otp resend_otp passkey_options passkey]
-      rate_limit to: 10, within: 3.minutes, only: %i[create verify_otp resend_otp passkey_options passkey],
+      allow_unauthenticated_access only: %i[create unlock verify_otp resend_otp passkey_options passkey]
+      rate_limit to: 10, within: 3.minutes, only: %i[create unlock verify_otp resend_otp passkey_options passkey],
         with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }
-      rate_limit to: 10, within: 3.minutes, only: :create,
-        by: -> { EmailPrivacyDigest.call(params[:email_address]) },
+      rate_limit to: 10, within: 3.minutes, only: %i[create unlock],
+        by: -> { EmailPrivacyDigest.call(action_name == "unlock" ? unlock_user&.email_address : params[:email_address]) },
         with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }, name: "login-account"
-      rate_limit to: 300, within: 1.minute, only: :create, by: -> { "global" },
+      rate_limit to: 300, within: 1.minute, only: %i[create unlock], by: -> { "global" },
         with: -> { render_api_error("RATE_LIMITED", status: :too_many_requests) }, name: "login-global"
 
       def show
         render json: { user: user_json(Current.user) }
+      end
+
+      def unlock
+        user = unlock_user
+        return render_api_error("INVALID_UNLOCK_CONTEXT", status: :unauthorized) unless user
+
+        params[:email_address] = user.email_address
+        create
       end
 
       def create
@@ -32,8 +40,11 @@ module Api
             AuditLog.record!(action: "session.login", actor: user, auditable: user, request: request)
             return render json: { otp_required: false, user: user_json(user) }, status: :created
           end
-          if otp_trusted_for?(user)
-            start_new_session_for(user)
+          trusted = TrustedDevice.consume!(user, token: cookies[:trusted_device_token], binding: cookies[:trusted_device_binding], user_agent: request.user_agent)
+          if trusted || otp_trusted_for?(user)
+            device, rotated_token = trusted
+            write_trusted_cookie(:trusted_device_token, rotated_token, device.expires_at) if device
+            start_new_session_for(user, trusted_device: device)
             AuditLog.record!(action: "session.login", actor: user, auditable: user, request: request)
             return render json: { otp_required: false, user: user_json(user) }, status: :created
           end
@@ -51,9 +62,21 @@ module Api
       def verify_otp
         challenge = find_challenge
         return render_invalid_challenge unless challenge
+        if params[:unlock_token].present? && unlock_user != challenge.user
+          return render_api_error("INVALID_UNLOCK_CONTEXT", status: :unauthorized)
+        end
+        return render_invalid_challenge unless challenge.usable?
 
-        return finish_verification(challenge.user) if challenge.user.verify_totp(params[:code])
-        return finish_verification(challenge.user, recovery_code: true) if challenge.user.consume_recovery_code(params[:code])
+        totp_verified = challenge.user.verify_totp(params[:code])
+        recovery_verified = !totp_verified && challenge.user.consume_recovery_code(params[:code])
+        if totp_verified || recovery_verified
+          verified = challenge.with_lock do
+            next false unless challenge.usable?
+            challenge.update!(consumed_at: Time.current)
+            true
+          end
+          return verified ? finish_verification(challenge.user, recovery_code: recovery_verified) : render_invalid_challenge
+        end
 
         case challenge.verify(params[:code])
         when :verified
@@ -66,6 +89,9 @@ module Api
 
       def resend_otp
         challenge = find_challenge
+        if params[:unlock_token].present? && unlock_user != challenge&.user
+          return render_api_error("INVALID_UNLOCK_CONTEXT", status: :unauthorized)
+        end
         return render_invalid_challenge unless challenge&.usable?
         return render_api_error("OTP_RESEND_TOO_SOON", status: :too_many_requests) unless challenge.resend_available?
 
@@ -110,7 +136,20 @@ module Api
 
       private
         def user_json(user)
-          user.as_json(only: %i[id email_address role first_name last_name]).merge(permissions: user.permission_keys, avatar_url: user.avatar.attached? ? "/api/v1/profile/avatar?v=#{user.avatar.blob_id}" : nil)
+          unlock_token = session_unlock_token(user)
+          user.as_json(only: %i[id email_address role first_name last_name]).merge(unlock_token: unlock_token, permissions: user.permission_keys, avatar_url: user.avatar.attached? ? "/api/v1/profile/avatar?v=#{user.avatar.blob_id}" : nil)
+        end
+
+        def unlock_user
+          payload = Rails.application.message_verifier(:session_unlock).verify(params[:unlock_token])
+          user = User.find_by(id: payload["user_id"])
+          user if user && user.authentication_version == payload["authentication_version"]
+        rescue ActiveSupport::MessageVerifier::InvalidSignature
+          nil
+        end
+
+        def write_trusted_cookie(name, value, expiry)
+          cookies[name] = { value: value, expires: expiry, httponly: true, same_site: :lax, secure: Rails.env.production? }
         end
 
         def passkey_token(user_id, challenge)
@@ -133,7 +172,8 @@ module Api
           return false if mfa_required_for?(user)
 
           payload = Rails.application.message_verifier(:otp_trust).verify(cookies[:otp_trust])
-          payload["user_id"] == user.id && payload["authentication_version"] == user.authentication_version && user.email_verified?
+          payload["user_id"] == user.id && payload["authentication_version"] == user.authentication_version && user.email_verified? &&
+            cookies[:trusted_device_binding].present? && payload["binding_digest"] == TrustedDevice.digest(cookies[:trusted_device_binding]) && payload["fingerprint"] == TrustedDevice.digest(request.user_agent) && payload["access_digest"] == TrustedDevice.access_digest(user)
         rescue ActiveSupport::MessageVerifier::InvalidSignature
           false
         end
@@ -141,7 +181,9 @@ module Api
         def remember_otp_verification_for(user)
           return if mfa_required_for?(user)
 
-          token = Rails.application.message_verifier(:otp_trust).generate({ user_id: user.id, authentication_version: user.authentication_version }, expires_in: 1.hour)
+          binding = cookies[:trusted_device_binding].presence || SecureRandom.urlsafe_base64(32)
+          write_trusted_cookie(:trusted_device_binding, binding, 1.hour.from_now) unless cookies[:trusted_device_binding].present?
+          token = Rails.application.message_verifier(:otp_trust).generate({ user_id: user.id, authentication_version: user.authentication_version, binding_digest: TrustedDevice.digest(binding), fingerprint: TrustedDevice.digest(request.user_agent), access_digest: TrustedDevice.access_digest(user) }, expires_in: 1.hour)
           cookies[:otp_trust] = { value: token, expires: 1.hour.from_now, httponly: true, same_site: :lax, secure: Rails.env.production? }
         end
 
@@ -156,7 +198,7 @@ module Api
         end
 
         def challenge_json(challenge)
-          { otp_required: true, account_unverified: !challenge.user.email_verified?, totp_available: challenge.user.totp_enabled?, challenge_token: challenge.token, email_hint: challenge.user.email_address.gsub(/(?<=.).(?=[^@]*?@)/, "*"), expires_in: LoginChallenge::LIFETIME.to_i, resend_in: LoginChallenge::RESEND_DELAY.to_i }
+          { otp_required: true, trust_device_available: !mfa_required_for?(challenge.user), account_unverified: !challenge.user.email_verified?, totp_available: challenge.user.totp_enabled?, challenge_token: challenge.token, email_hint: challenge.user.email_address.gsub(/(?<=.).(?=[^@]*?@)/, "*"), expires_in: LoginChallenge::LIFETIME.to_i, resend_in: LoginChallenge::RESEND_DELAY.to_i }
         end
 
         def render_invalid_challenge
@@ -190,8 +232,15 @@ module Api
           return render_inactive_account unless user.active?
 
           user.update!(email_verified_at: Time.current) unless user.email_verified?
+          if params[:trust_device] == true && !mfa_required_for?(user) && !recovery_code
+            device, token, binding = TrustedDevice.issue!(user, user_agent: request.user_agent)
+            write_trusted_cookie(:trusted_device_token, token, device.expires_at)
+            write_trusted_cookie(:trusted_device_binding, binding, device.expires_at)
+            AuditLog.record!(action: "session.device_trusted", actor: user, auditable: user, request: request)
+          end
+          # Build the short trust token after the opt-in binding has been selected.
           remember_otp_verification_for(user)
-          start_new_session_for(user)
+          start_new_session_for(user, trusted_device: device)
           action = recovery_code ? "session.recovery_code_login" : "session.login"
           AuditLog.record!(action: action, actor: user, auditable: user, request: request)
           render json: { user: user_json(user) }, status: :created

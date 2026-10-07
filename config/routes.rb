@@ -11,6 +11,7 @@ Rails.application.routes.draw do
       resource :registration, only: :create
       resource :email_revert, only: :create
       resource :session, only: %i[show create destroy] do
+        post :unlock
         post :verify_otp
         post :resend_otp
         post :passkey_options

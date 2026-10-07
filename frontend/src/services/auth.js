@@ -48,8 +48,8 @@ export function useAuth() {
     }
   }
 
-  const can = (permission) => permissions.value.includes(permission);
-  const canAny = (requested) => requested.some(can);
+  const can = (permission, candidate = user.value) => (candidate?.permissions || []).includes(permission);
+  const canAny = (requested) => requested.some((permission) => can(permission));
 
   return {
     user,

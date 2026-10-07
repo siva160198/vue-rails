@@ -1,4 +1,5 @@
 <script setup>
+import OtpInput from "../components/OtpInput.vue";
 import { computed, onBeforeUnmount, ref } from "vue";
 import { useRouter } from "vue-router";
 import { apiFetch } from "../services/api";
@@ -8,6 +9,7 @@ import { t } from "../services/i18n";
 import { useAuth } from "../services/auth";
 import FormField from "../components/FormField.vue";
 import TextInput from "../components/TextInput.vue";
+import ToggleInput from "../components/ToggleInput.vue";
 import { useFormErrors } from "../services/formErrors";
 
 const router = useRouter();
@@ -16,6 +18,8 @@ const email = ref("");
 const password = ref("");
 const passwordConfirmation = ref("");
 const code = ref("");
+const trustDevice = ref(false);
+const trustDeviceAvailable = ref(false);
 const challengeToken = ref("");
 const emailHint = ref("");
 const loading = ref(false);
@@ -55,6 +59,7 @@ async function register() {
       }),
     });
     challengeToken.value = response.challenge_token;
+    trustDeviceAvailable.value = response.trust_device_available === true;
     emailHint.value = response.email_hint;
     startResendCooldown(response.resend_in);
     if (response.account_unverified) {
@@ -80,6 +85,7 @@ async function verifyOtp() {
       body: JSON.stringify({
         challenge_token: challengeToken.value,
         code: code.value,
+        trust_device: trustDevice.value,
       }),
     });
     setUser(user);
@@ -186,23 +192,16 @@ function validateRegistration() {
 
       <div v-else class="mt-8">
         <FormField :label="t('auth.otp')" :error="errorFor('code')">
-          <TextInput
+          <OtpInput
             v-model="code"
             name="code"
             :disabled="loading"
-            type="text"
-            inputmode="numeric"
-            autocomplete="one-time-code"
-            pattern="[0-9]{6}"
-            maxlength="6"
-            required
-            autofocus
-            class="text-center text-2xl font-bold tracking-[0.45em]"
             @input="clearError('code')"
           />
         </FormField>
       </div>
 
+      <ToggleInput v-if="challengeToken && trustDeviceAvailable" v-model="trustDevice" class="mt-5" :disabled="loading" :label="t('auth.trust_device')" :hint="t('auth.trust_device_hint')" />
       <AsyncButton
         type="submit"
         :loading="loading"

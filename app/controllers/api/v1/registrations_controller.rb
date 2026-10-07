@@ -48,6 +48,7 @@ module Api
         def challenge_json(challenge, account_unverified:)
           {
             otp_required: true,
+            trust_device_available: !challenge.user.role_requires_login_otp?,
             account_unverified: account_unverified,
             challenge_token: challenge.token,
             email_hint: challenge.user.email_address.gsub(/(?<=.).(?=[^@]*?@)/, "*"),

@@ -1,6 +1,7 @@
 class User < ApplicationRecord
   has_secure_password
   has_many :sessions, dependent: :destroy
+  has_many :trusted_devices, dependent: :destroy
   has_many :login_challenges, dependent: :destroy
   has_many :email_change_challenges, dependent: :destroy
   has_many :webauthn_credentials, dependent: :destroy
@@ -25,6 +26,7 @@ class User < ApplicationRecord
   validate :password_not_reused, if: -> { password.present? }
   validate :password_not_compromised, if: -> { password.present? }
   after_update :remember_previous_password, if: :saved_change_to_password_digest?
+  after_update :expire_device_trust, if: :trust_settings_changed?
 
   def admin?
     role == "admin"
@@ -119,6 +121,14 @@ class User < ApplicationRecord
   end
 
   private
+    def trust_settings_changed?
+      (saved_changes.keys & %w[password_digest email_address active role login_otp_required totp_secret totp_enabled_at recovery_code_digests authentication_version]).any?
+    end
+
+    def expire_device_trust
+      trusted_devices.where("expires_at > ?", Time.current).update_all(expires_at: Time.current)
+    end
+
     def login_otp_required_for_protected_role
       errors.add(:login_otp_required, :required_for_role) if role_requires_login_otp? && !login_otp_required?
     end

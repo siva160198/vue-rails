@@ -66,6 +66,10 @@ module Api
           Role.transaction do
             role.save!
             role.permission_ids = desired_permission_ids
+            if before["permission_keys"].sort != role.permission_keys.sort
+              role.users.update_all("authentication_version = authentication_version + 1")
+              TrustedDevice.where(user_id: role.users.select(:id)).where("expires_at > ?", Time.current).update_all(expires_at: Time.current)
+            end
           end
           record_audit("admin.role_updated", role, before: before, after: role_snapshot(role))
           render json: { role: role_json(role) }

@@ -5,6 +5,7 @@ class DataRetentionJob < ApplicationJob
 
   def perform
     delete_in_batches(Session.where(updated_at: ...session_cutoff))
+    TrustedDevice.where(expires_at: ...Time.current).in_batches(of: BATCH_SIZE) { |batch| batch.each(&:destroy!) }
     delete_in_batches(LoginChallenge.where(created_at: ...LoginChallenge::LIFETIME.ago))
     delete_in_batches(StepUpChallenge.where(created_at: ...StepUpChallenge::GRANT_LIFETIME.ago))
     delete_in_batches(StepUpGrant.where(expires_at: ...Time.current))

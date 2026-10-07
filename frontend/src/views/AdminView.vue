@@ -1,5 +1,9 @@
 <script setup>
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import ReportDateFilter from "../components/ReportDateFilter.vue";
+import ReportLineChart from "../components/ReportLineChart.vue";
+import { reportContext } from "../services/reportContext";
 import {
   Activity,
   ArrowDownRight,
@@ -13,10 +17,17 @@ import { apiFetch } from "../services/api";
 import { toast } from "../services/toast";
 import { t } from "../services/i18n";
 import DataTable from "../components/DataTable.vue";
-import SelectInput from "../components/SelectInput.vue";
+import AsyncButton from "../components/AsyncButton.vue";
 
 const dashboard = ref(null);
 const loadFailed = ref(false);
+const reportLoading = ref(false);
+const route = useRoute();
+const router = useRouter();
+const range = computed(() => reportContext(route.query));
+let controller;
+let sequence = 0;
+function changeRange(value) { router.replace({ query: { ...route.query, ...value } }); }
 
 const cards = computed(() =>
   dashboard.value
@@ -24,7 +35,7 @@ const cards = computed(() =>
         {
           label: t("dashboard.total_users"),
           value: dashboard.value.metrics.users,
-          change: "+0%",
+          change: t("dashboard.live"),
           trend: "up",
           icon: Users,
         },
@@ -72,14 +83,22 @@ const activityItems = computed(() =>
     : [],
 );
 
-onMounted(async () => {
+async function loadDashboard() {
+  const request = ++sequence;
+  controller?.abort();
+  controller = new AbortController();
+  reportLoading.value = true;
+  loadFailed.value = false;
   try {
-    dashboard.value = await apiFetch("/api/v1/admin/dashboard");
-  } catch (requestError) {
-    loadFailed.value = true;
-    toast.error(requestError.message);
-  }
-});
+    const query = new URLSearchParams({ start_date: range.value.start_date, end_date: range.value.end_date });
+    const response = await apiFetch('/api/v1/admin/dashboard?' + query, { signal: controller.signal });
+    if (request === sequence) dashboard.value = response;
+  } catch (error) {
+    if (request === sequence && error.code !== 'REQUEST_ABORTED' && error.name !== 'AbortError') { loadFailed.value = true; toast.error(error.message); }
+  } finally { if (request === sequence) reportLoading.value = false; }
+}
+watch(() => [route.query.start_date, route.query.end_date], loadDashboard, { immediate: true });
+onBeforeUnmount(() => { sequence++; controller?.abort(); });
 </script>
 
 <template>
@@ -103,9 +122,10 @@ onMounted(async () => {
         </div>
       </div>
 
-      <p v-if="loadFailed" class="py-12 text-center text-sm text-gray-500">
-        {{ t("dashboard.load_failed") }}
-      </p>
+      <div v-if="loadFailed && !dashboard" class="py-12 text-center text-sm text-gray-500">
+        <p>{{ t("dashboard.load_failed") }}</p>
+        <AsyncButton class="mt-3 rounded-lg border border-gray-200 px-4 py-2" :loading="reportLoading" @click="loadDashboard">{{ t('common.retry') }}</AsyncButton>
+      </div>
       <div
         v-else-if="!dashboard"
         class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"
@@ -162,33 +182,9 @@ onMounted(async () => {
                   {{ t("dashboard.system_activity") }}
                 </p>
               </div>
-              <SelectInput
-                class="rounded-lg border border-gray-200 bg-transparent px-3 py-2 text-sm text-gray-500 dark:border-gray-800"
-              >
-                <option>{{ t("dashboard.last_days") }}</option>
-              </SelectInput>
             </div>
-            <div
-              class="mt-8 flex h-64 items-end gap-3 border-b border-l border-gray-200 px-5 pb-0 dark:border-gray-800"
-            >
-              <div
-                v-for="(height, index) in [
-                  35, 52, 42, 68, 55, 78, 63, 88, 72, 82, 70, 94,
-                ]"
-                :key="index"
-                class="group relative flex-1 rounded-t-md bg-brand-100 transition hover:bg-brand-500 dark:bg-brand-500/20"
-                :style="{ height: `${height}%` }"
-              >
-                <span
-                  class="absolute -top-7 left-1/2 hidden -translate-x-1/2 rounded bg-gray-900 px-2 py-1 text-[10px] text-white group-hover:block"
-                  >{{ height }}</span
-                >
-              </div>
-            </div>
-            <div class="mt-3 flex justify-between text-xs text-gray-400">
-              <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span
-              ><span>Fri</span><span>Sat</span><span>Sun</span>
-            </div>
+            <div class="mt-4"><ReportDateFilter :range="range" :loading="reportLoading" @change="changeRange" /></div>
+            <ReportLineChart :title="t('report.registrations')" :current="dashboard.report?.current || []" :previous="dashboard.report?.previous || []" :loading="reportLoading" :error="loadFailed" @retry="loadDashboard" />
           </section>
 
           <section

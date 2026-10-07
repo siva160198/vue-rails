@@ -1,0 +1,60 @@
+# Optional external collector, NOT installed or activated by the application.
+# Validate with your pinned Vector version: vector validate --no-environment <file>.
+# Mount logs read-only; buffer on a separate private writable operations volume.
+# Use a dedicated IAM role, KMS key, and private Object-Lock bucket with DEFAULT
+# retention configured by an operator. No DeleteObject/retention-bypass privileges.
+data_dir = "/var/lib/vector"
+
+[sources.application]
+type = "file"
+include = ["/var/log/vue-rails/*.jsonl"]
+read_from = "beginning"
+
+[transforms.security_only]
+type = "remap"
+inputs = ["application"]
+drop_on_abort = true
+drop_on_error = true
+source = '''
+wrapper = parse_json!(string!(.message))
+event = parse_json!(string!(wrapper.message))
+if event.event == "security_audit" {
+  . = {"event": "security_audit", "timestamp": wrapper.timestamp,
+       "audit_id": event.audit_id, "action": event.action, "entry_digest": event.entry_digest}
+} else if event.event == "operational_alert" {
+  . = {"event": "operational_alert", "timestamp": wrapper.timestamp, "code": event.code}
+} else { abort }
+'''
+
+[sinks.immutable_archive]
+type = "aws_s3"
+inputs = ["security_only"]
+bucket = "${AUDIT_LOG_BUCKET}"
+region = "${AUDIT_LOG_REGION}"
+key_prefix = "security/%Y/%m/%d/"
+compression = "gzip"
+server_side_encryption = "aws:kms"
+ssekms_key_id = "${AUDIT_LOG_KMS_KEY_ID}"
+encoding.codec = "json"
+buffer.type = "disk"
+buffer.max_size = 268435488
+buffer.when_full = "block"
+
+[transforms.alerts]
+type = "filter"
+inputs = ["security_only"]
+condition = '.event == "operational_alert"'
+
+# An approved HTTPS alert receiver must map stable codes to an on-call channel.
+# Review receiver retention and ensure alerts contain no credentials or PII.
+[sinks.alert_receiver]
+type = "http"
+inputs = ["alerts"]
+uri = "${OPERATIONS_ALERT_URL}"
+method = "post"
+auth.strategy = "bearer"
+auth.token = "${OPERATIONS_ALERT_TOKEN}"
+encoding.codec = "json"
+buffer.type = "disk"
+buffer.max_size = 268435488
+buffer.when_full = "block"

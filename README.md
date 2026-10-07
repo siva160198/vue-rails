@@ -3,6 +3,29 @@
 Reusable full-stack starter for applications that need a Rails JSON API,
 Vue frontend, PostgreSQL, authentication, authorization, and an admin panel.
 
+## Session lock, device trust, and security governance
+
+Expired sessions lock the current page behind a TailAdmin dialog instead of discarding
+in-memory drafts. Unlock requires the same account's password and applicable MFA.
+Old requests are cancelled; failed writes are never replayed. Updated permissions are
+checked before unlocking. Reloading or explicitly leaving the page discards drafts.
+Unlock context expires after 24 hours or an authentication-version change; it is not
+an authentication credential and must stay in memory, never browser storage.
+
+After successful OTP, eligible users may opt into fixed 30-day personal-device trust.
+Password is still required. Trust uses hashed random tokens, separate HTTP-only browser
+binding, atomic token rotation, a maximum of 10 devices and bounded cleanup. MFA-required
+roles cannot bypass verification. Credential, MFA and access changes invalidate trust;
+revoking a bound session revokes its device, and revoke-other-sessions removes all trust.
+Two-cookie binding does not protect against theft of an entire browser profile.
+Playwright uses dedicated `vue_rails_e2e`/`vue_rails_e2e_queue` databases when
+`E2E=true`, separate from the Minitest fixture databases and development data.
+
+Draft guidance and a private-register template are in [the ISMS guide](docs/security/ISMS.md)
+and [register.yml](docs/security/register.yml). These are not certification, a complete
+Annex A SoA, or evidence of organizational compliance; deployment owners must complete
+scope, risk assessment, ownership, approvals and operational evidence.
+
 ## Included stack
 
 - Vue 3, Vite, Vue Router
@@ -296,7 +319,16 @@ when operation IDs collide, or when a mutation omits its CSRF requirement.
 
 ## Verification
 
+Run `bin/ci` for setup, Ruby style/security checks, Rails and seed tests,
+Vitest frontend tests, and the Vue production build. Node compatibility is checked
+before setup; use the recommended version in `.nvmrc`. The Rails test step explicitly
+includes the OpenAPI contract tests, which run once within the full suite.
+To also run Playwright locally, install Chromium as described below and use
+`CI_E2E=true bin/ci`. Without this opt-in, browser tests are skipped with an explanatory
+message. GitHub Actions continues to run its mandatory E2E job independently.
+
 ```sh
+bin/ci
 bin/rails test
 npm test --prefix frontend
 npm run test:coverage --prefix frontend
@@ -320,6 +352,38 @@ npx --prefix frontend playwright install chromium
 ```
 
 ## Template maintenance
+
+The starter now includes opt-in encrypted CSV/background integration foundations in
+[`docs/data-pipeline-recipes.md`](docs/data-pipeline-recipes.md), plus a real cached
+PostgreSQL registration report on the dashboard with shareable UTC date filters and
+previous-period chart. Import/provider business adapters, upload APIs and menus are
+deliberately not enabled until a derived project supplies its own policy and scope.
+Personal-field classification and key/retention rules are in
+[`docs/security/personal-data.md`](docs/security/personal-data.md).
+
+Optional off-site backup, external audit/alert collector templates, scheduled health
+and streaming audit checks, and the private `bin/production_check` evidence gate are
+documented in [`docs/operations.md`](docs/operations.md). These do not activate cloud
+resources or constitute proof of ISO compliance, a working alert channel, or recovery.
+
+### Shared form UX
+
+- Editable `AppModal` callers provide `:dirty` from their original snapshot. Child
+  forms use `useModalGuard(() => ({ dirty, busy }))`. Backdrop, Escape, close, and
+  footer Cancel all call the guard (`#footer="{ requestClose }"`), which opens a
+  local discard confirmation and preserves drafts when cancelled. Successful saves
+  may close directly. Do not persist password/OTP snapshots in browser storage.
+- `SelectInput` retains native slot-based selects for short fixed choices. Pass
+  `:options="[{ value, label, disabled }]"` for a searchable master-data picker.
+  Large datasets supply `loadOptions({ search, limit, signal })`; return bounded
+  option objects from an authorized API and pass the signal to `apiFetch`. The
+  picker debounces 300 ms, requires two characters by default, caps results at 50,
+  cancels on close/unmount, and ignores stale responses. No new API call is needed
+  for local role options already loaded by the user form.
+- `OtpInput` uses a single string model with six digit boxes, paste/autofill,
+  keyboard navigation and shared FormField errors. Login/unlock opt into the
+  separate recovery-code entry with `allowRecovery`; email/TOTP-only flows do not.
+  Completing a code never submits automatically or writes it to browser storage.
 
 Keep this repository generic. Add reusable infrastructure and UI components
 here, but add business-specific models, migrations, and credentials only after

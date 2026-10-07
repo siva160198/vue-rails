@@ -27,16 +27,15 @@ class AuditLog < ApplicationRecord
   end
 
   def self.valid_chain?(scope = order(:id))
-    scope.reorder(:chain_key, :id).group_by(&:chain_key).values.all? do |entries|
-      previous = nil
-      entries.each_with_index.all? do |entry, index|
-        link_valid = index.zero? || entry.previous_digest == previous
-        attributes = entry.attributes.symbolize_keys.slice(:action, :metadata, :ip_address, :user_agent, :chain_key, :previous_digest, :created_at, :updated_at, :actor_id, :auditable_type, :auditable_id)
-        digest_valid = ActiveSupport::SecurityUtils.secure_compare(entry.entry_digest.to_s, OpenSSL::HMAC.hexdigest("SHA256", audit_key, digest_payload(attributes)))
-        previous = entry.entry_digest
-        link_valid && digest_valid
-      end
+    previous = {}
+    scope.reorder(nil).find_each(batch_size: 500) do |entry|
+      return false if previous.key?(entry.chain_key) && entry.previous_digest != previous[entry.chain_key]
+      attributes = entry.attributes.symbolize_keys.slice(:action, :metadata, :ip_address, :user_agent, :chain_key, :previous_digest, :created_at, :updated_at, :actor_id, :auditable_type, :auditable_id)
+      expected = OpenSSL::HMAC.hexdigest("SHA256", audit_key, digest_payload(attributes))
+      return false unless ActiveSupport::SecurityUtils.secure_compare(entry.entry_digest.to_s, expected)
+      previous[entry.chain_key] = entry.entry_digest
     end
+    true
   end
 
 

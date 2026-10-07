@@ -8,6 +8,8 @@ import { t } from './services/i18n'
 import LanguageSwitcher from './components/LanguageSwitcher.vue'
 import { useAuth } from './services/auth'
 import { authenticatedLandingPath } from './services/routeAccess'
+import { lockedAccount } from './services/sessionLock'
+const SessionLockModal = defineAsyncComponent(() => import('./components/SessionLockModal.vue'))
 
 const route = useRoute()
 const AppErrorView = defineAsyncComponent(() => import('./views/AppErrorView.vue'))
@@ -20,7 +22,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="min-h-screen bg-slate-50 text-slate-900">
+  <div :inert="Boolean(lockedAccount)" class="min-h-screen bg-slate-50 text-slate-900">
     <header v-if="route.meta.layout !== 'admin'" class="border-b border-slate-200 bg-white">
       <nav class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
         <RouterLink to="/" class="text-xl font-bold tracking-tight">Vue Rails</RouterLink>
@@ -34,7 +36,8 @@ onMounted(() => {
     </header>
     <AppErrorView v-if="appError" />
     <RouterView v-else />
-    <ToastContainer />
-    <NavigationLoader />
   </div>
+  <ToastContainer />
+  <NavigationLoader />
+  <SessionLockModal v-if="lockedAccount" />
 </template>

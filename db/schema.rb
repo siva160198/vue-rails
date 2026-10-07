@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_09_04_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_10_07_022000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
   enable_extension "pg_trgm"
@@ -98,6 +98,70 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_010000) do
     t.index ["user_id"], name: "index_email_change_challenges_on_user_id"
   end
 
+  create_table "import_rows", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "failure_code"
+    t.bigint "import_run_id", null: false
+    t.text "payload_ciphertext"
+    t.integer "position", null: false
+    t.string "status", default: "pending", null: false
+    t.datetime "updated_at", null: false
+    t.index ["import_run_id", "position"], name: "index_import_rows_on_import_run_id_and_position", unique: true
+    t.index ["import_run_id", "status", "position"], name: "index_import_rows_on_import_run_id_and_status_and_position"
+    t.index ["import_run_id"], name: "index_import_rows_on_import_run_id"
+  end
+
+  create_table "import_runs", force: :cascade do |t|
+    t.string "adapter_key", null: false
+    t.datetime "created_at", null: false
+    t.integer "failed_rows", default: 0, null: false
+    t.string "failure_code"
+    t.datetime "finished_at"
+    t.datetime "heartbeat_at"
+    t.bigint "owner_id", null: false
+    t.integer "processed_rows", default: 0, null: false
+    t.integer "recovery_attempts", default: 0, null: false
+    t.text "source_ciphertext"
+    t.string "source_digest", null: false
+    t.string "status", default: "queued", null: false
+    t.string "submission_key", null: false
+    t.integer "total_rows", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_id", "adapter_key", "submission_key"], name: "idx_on_owner_id_adapter_key_submission_key_995a6e6de9", unique: true
+    t.index ["owner_id"], name: "index_import_runs_on_owner_id"
+    t.index ["status", "updated_at"], name: "index_import_runs_on_status_and_updated_at"
+  end
+
+  create_table "integration_connections", force: :cascade do |t|
+    t.integer "attempts", default: 0, null: false
+    t.datetime "created_at", null: false
+    t.text "credentials_ciphertext", null: false
+    t.text "cursor_ciphertext"
+    t.string "failure_code"
+    t.datetime "heartbeat_at"
+    t.datetime "last_synced_at"
+    t.datetime "next_sync_at"
+    t.bigint "owner_id", null: false
+    t.integer "processed_items", default: 0, null: false
+    t.string "provider_key", null: false
+    t.integer "recovery_attempts", default: 0, null: false
+    t.string "status", default: "idle", null: false
+    t.datetime "updated_at", null: false
+    t.index ["owner_id"], name: "index_integration_connections_on_owner_id"
+    t.index ["status", "next_sync_at"], name: "index_integration_connections_on_status_and_next_sync_at"
+  end
+
+  create_table "integration_items", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.string "external_id", null: false
+    t.bigint "integration_connection_id", null: false
+    t.text "payload_ciphertext", null: false
+    t.datetime "updated_at", null: false
+    t.index ["integration_connection_id", "external_id"], name: "index_integration_items_on_connection_and_external_id", unique: true
+    t.index ["integration_connection_id"], name: "index_integration_items_on_integration_connection_id"
+    t.index ["updated_at"], name: "index_integration_items_on_updated_at"
+  end
+
   create_table "login_attempts", force: :cascade do |t|
     t.boolean "captcha_verified", default: false, null: false
     t.datetime "created_at", null: false
@@ -171,10 +235,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_010000) do
     t.datetime "expires_at", null: false
     t.string "ip_address"
     t.datetime "last_seen_at", null: false
+    t.bigint "trusted_device_id"
     t.datetime "updated_at", null: false
     t.string "user_agent"
     t.bigint "user_id", null: false
     t.index ["expires_at"], name: "index_sessions_on_expires_at"
+    t.index ["trusted_device_id"], name: "index_sessions_on_trusted_device_id"
     t.index ["user_id"], name: "index_sessions_on_user_id"
   end
 
@@ -204,6 +270,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_010000) do
     t.index ["user_id"], name: "index_step_up_grants_on_user_id"
   end
 
+  create_table "trusted_devices", force: :cascade do |t|
+    t.string "access_digest", null: false
+    t.integer "authentication_version", null: false
+    t.string "binding_digest", null: false
+    t.datetime "created_at", null: false
+    t.datetime "expires_at", null: false
+    t.string "fingerprint", null: false
+    t.datetime "last_used_at", null: false
+    t.string "token_digest", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["expires_at"], name: "index_trusted_devices_on_expires_at"
+    t.index ["token_digest"], name: "index_trusted_devices_on_token_digest", unique: true
+    t.index ["user_id"], name: "index_trusted_devices_on_user_id"
+  end
+
   create_table "users", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.integer "authentication_version", default: 0, null: false
@@ -231,6 +313,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_010000) do
     t.string "totp_secret"
     t.datetime "updated_at", null: false
     t.string "webauthn_user_handle"
+    t.index ["created_at"], name: "index_users_on_created_at"
     t.index ["email_address"], name: "index_users_on_email_address", unique: true
     t.index ["email_address"], name: "index_users_on_email_address_trigram", opclass: :gin_trgm_ops, using: :gin
     t.index ["webauthn_user_handle"], name: "index_users_on_webauthn_user_handle", unique: true
@@ -257,13 +340,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_09_04_010000) do
   add_foreign_key "admin_approvals", "users", column: "requester_id"
   add_foreign_key "audit_logs", "users", column: "actor_id"
   add_foreign_key "email_change_challenges", "users"
+  add_foreign_key "import_rows", "import_runs", on_delete: :cascade
+  add_foreign_key "import_runs", "users", column: "owner_id", on_delete: :cascade
+  add_foreign_key "integration_connections", "users", column: "owner_id", on_delete: :cascade
+  add_foreign_key "integration_items", "integration_connections", on_delete: :cascade
   add_foreign_key "login_challenges", "users"
   add_foreign_key "password_histories", "users"
   add_foreign_key "role_permissions", "permissions"
   add_foreign_key "role_permissions", "roles"
+  add_foreign_key "sessions", "trusted_devices", on_delete: :cascade
   add_foreign_key "sessions", "users"
   add_foreign_key "step_up_challenges", "users"
   add_foreign_key "step_up_grants", "users"
+  add_foreign_key "trusted_devices", "users"
   add_foreign_key "users", "roles", column: "role", primary_key: "key"
   add_foreign_key "webauthn_credentials", "users"
 end

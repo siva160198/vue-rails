@@ -118,6 +118,23 @@ describe('apiFetch', () => {
     await expect(apiFetch('/api/v1/protected')).rejects.toMatchObject({ message: 'Ditolak', status: 403 })
   })
 
+  it('rejects late successful responses after session reset and blocks background requests while locked', async () => {
+    let complete
+    const fetchMock = vi.fn(() => new Promise((resolve) => { complete = resolve }))
+    vi.stubGlobal('fetch', fetchMock)
+    const { apiFetch, resetApiSession } = await import('./api')
+    const { lockedAccount, clearSessionLock } = await import('./sessionLock')
+    const request = apiFetch('/api/v1/slow')
+    const rejected = expect(request).rejects.toMatchObject({ code: 'REQUEST_ABORTED' })
+    resetApiSession()
+    complete(new Response(JSON.stringify({ old: true }), { status: 200, headers: { 'Content-Type': 'application/json' } }))
+    await rejected
+    lockedAccount.value = { id: 1 }
+    await expect(apiFetch('/api/v1/admin/users')).rejects.toMatchObject({ code: 'REQUEST_ABORTED' })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    clearSessionLock()
+  })
+
   it('handles non-JSON server responses without parsing failures', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('<html>Error</html>', {
       status: 500,

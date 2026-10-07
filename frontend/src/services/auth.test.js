@@ -42,4 +42,11 @@ describe("useAuth", () => {
     });
     expect(auth.user.value).toBeNull();
   });
+
+  it("checks renewed permissions without mutating the mounted account", () => {
+    const auth = useAuth();
+    auth.setUser({ id: 1, permissions: ["profile.view"] });
+    expect(auth.can("profile.view", { id: 1, permissions: [] })).toBe(false);
+    expect(auth.can("profile.view")).toBe(true);
+  });
 });

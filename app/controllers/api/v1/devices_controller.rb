@@ -14,7 +14,7 @@ module Api
         authorize session
         current = session == Current.session
         AuditLog.record!(action: "session.revoked", actor: Current.user, auditable: session, metadata: { current: current }, request: request)
-        session.destroy!
+        session.trusted_device ? session.trusted_device.destroy! : session.destroy!
         cookies.delete(:session_id) if current
         render json: { current_session: current }
       end
@@ -23,6 +23,11 @@ module Api
         authorize Session, :destroy?
         return unless require_step_up!("sessions_revoke")
         removed = policy_scope(Session).where.not(id: Current.session.id).delete_all
+        Current.session.update!(trusted_device: nil)
+        Current.user.trusted_devices.destroy_all
+        cookies.delete(:trusted_device_token)
+        cookies.delete(:trusted_device_binding)
+        cookies.delete(:otp_trust)
         AuditLog.record!(action: "session.others_revoked", actor: Current.user, auditable: Current.user, metadata: { count: removed }, request: request)
         render json: { removed: removed }
       end

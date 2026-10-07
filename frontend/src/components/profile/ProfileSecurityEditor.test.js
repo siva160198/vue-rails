@@ -3,6 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ProfileSecurityEditor from "./ProfileSecurityEditor.vue";
 import { apiFetch } from "../../services/api";
 import { resetAuthState, useAuth } from "../../services/auth";
+import AppModal from '../AppModal.vue';
+import StepUpPrompt from '../security/StepUpPrompt.vue';
+import { h } from 'vue';
+import { confirmToast } from '../../services/toast';
 
 vi.mock("../../services/api", () => ({ apiFetch: vi.fn() }));
 vi.mock("../../services/passkeys", () => ({ passkeysSupported: () => true, registerPasskey: vi.fn() }));
@@ -74,5 +78,28 @@ describe("ProfileSecurityEditor", () => {
 
     expect(apiFetch).toHaveBeenCalledWith("/api/v1/account_security?per_page=1");
     expect(wrapper.text()).toContain("Passkey belum dikonfigurasi");
+  });
+
+  it('allows cancelling pending passkey verification but blocks closing during actual deletion', async () => {
+    let completeRemoval;
+    apiFetch.mockResolvedValueOnce({ passkeys: [{ id: 1, nickname: 'Laptop' }], passkeys_enabled: true })
+      .mockImplementationOnce(() => new Promise(resolve => { completeRemoval = resolve; }));
+    confirmToast.mockResolvedValue(true);
+    const wrapper = mount(AppModal, { attachTo: document.body, props: { open: true, title: 'Passkeys' }, slots: { default: () => h(ProfileSecurityEditor, { feature: 'passkeys' }) } });
+    await flushPromises();
+    await wrapper.findComponent(ProfileSecurityEditor).findComponent({ name: 'TableActionButton' }).trigger('click');
+    await flushPromises();
+    // Waiting for the user is not a network request; closing must not be deadlocked.
+    wrapper.vm.requestClose();
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    wrapper.findComponent(StepUpPrompt).vm.$emit('verified', 'grant');
+    await flushPromises();
+    wrapper.vm.requestClose();
+    expect(wrapper.emitted('close')).toHaveLength(1);
+    completeRemoval({});
+    await flushPromises();
+    wrapper.vm.requestClose();
+    expect(wrapper.emitted('close')).toHaveLength(2);
+    wrapper.unmount();
   });
 });

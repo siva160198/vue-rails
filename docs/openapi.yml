@@ -7,6 +7,13 @@ info:
     HTTP-only `session_id` cookie. Fetch `GET /api/v1/csrf` and send its token as
     `X-CSRF-Token` on every POST, PATCH, PUT, or DELETE request. Clients may send
     `Accept-Language: id` or `en` and should preserve `X-Request-ID`.
+    Session expiry is 401 AUTHENTICATION_REQUIRED; clients may keep drafts in memory
+    behind a blocking lock screen. unlock_token identifies the same account only,
+    never authenticates it: password and applicable MFA remain required. Tokens expire
+    after 24 hours or an authentication-version change. Never replay failed writes.
+    Optional 30-day trust uses separate HTTP-only trusted_device_token and
+    trusted_device_binding cookies. Password remains mandatory; MFA-required roles
+    cannot bypass OTP. Trust rotates on use and is invalid after credential/access changes.
 servers:
   - url: /
 security:
@@ -90,6 +97,7 @@ paths:
         "202": { description: OTP required, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
         "401": { $ref: "#/components/responses/ApiError" }
         "403": { $ref: "#/components/responses/ApiError" }
+        "422": { $ref: "#/components/responses/ApiError" }
         "429": { $ref: "#/components/responses/ApiError" }
     delete:
       tags: [Authentication]
@@ -98,6 +106,20 @@ paths:
       responses:
         "204": { description: Current session removed }
         "401": { $ref: "#/components/responses/ApiError" }
+  /api/v1/session/unlock:
+    post:
+      tags: [Authentication]
+      security: []
+      operationId: unlockSession
+      parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
+      requestBody: { required: true, content: { application/json: { schema: { $ref: "#/components/schemas/UnlockRequest" } } } }
+      responses:
+        "201": { description: Same account authenticated; refresh permissions before releasing lock, content: { application/json: { schema: { type: object, required: [user, otp_required], properties: { otp_required: { const: false }, user: { $ref: "#/components/schemas/AuthenticatedUser" } } } } } }
+        "202": { description: MFA challenge required, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
+        "401": { $ref: "#/components/responses/ApiError" }
+        "403": { $ref: "#/components/responses/ApiError" }
+        "422": { $ref: "#/components/responses/ApiError" }
+        "429": { $ref: "#/components/responses/ApiError" }
   /api/v1/session/verify_otp:
     post:
       tags: [Authentication]
@@ -115,7 +137,7 @@ paths:
       security: []
       operationId: resendOtp
       parameters: [{ $ref: "#/components/parameters/CsrfToken" }]
-      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [challenge_token], properties: { challenge_token: { type: string } } } } } }
+      requestBody: { required: true, content: { application/json: { schema: { type: object, required: [challenge_token], properties: { challenge_token: { type: string }, unlock_token: { type: string } } } } } }
       responses:
         "202": { description: Replacement OTP challenge, content: { application/json: { schema: { $ref: "#/components/schemas/OtpChallenge" } } } }
         "401": { $ref: "#/components/responses/ApiError" }
@@ -317,7 +339,16 @@ paths:
       requestBody: { required: true, content: { application/json: { schema: { allOf: [{ $ref: "#/components/schemas/SecurityChallengeVerification" }, { type: object, required: [purpose], properties: { purpose: { type: string, enum: [account_security] } } }] } } } }
       responses: { "200": { description: Short-lived step-up grant, content: { application/json: { schema: { type: object, required: [step_up_token, expires_in], properties: { step_up_token: { type: string }, expires_in: { type: integer, minimum: 1 } } } } } }, "401": { $ref: "#/components/responses/ApiError" }, "429": { $ref: "#/components/responses/ApiError" } }
   /api/v1/admin/dashboard:
-    get: { tags: [Admin], operationId: getAdminDashboard, responses: { "200": { description: Dashboard metrics, content: { application/json: { schema: { $ref: "#/components/schemas/DashboardResponse" } } } }, "403": { $ref: "#/components/responses/ApiError" } } }
+    get:
+      tags: [Admin]
+      operationId: getAdminDashboard
+      parameters:
+        - { name: start_date, in: query, schema: { type: string, format: date }, description: Inclusive UTC start. Defaults to six days before end_date. }
+        - { name: end_date, in: query, schema: { type: string, format: date }, description: Inclusive UTC end. Defaults to today. Maximum range is 366 days and future dates are rejected. }
+      responses:
+        "200": { description: Cached dashboard metrics and bounded daily registration report, content: { application/json: { schema: { $ref: "#/components/schemas/DashboardResponse" } } } }
+        "403": { $ref: "#/components/responses/ApiError" }
+        "422": { $ref: "#/components/responses/ApiError" }
   /api/v1/admin/users:
     get:
       tags: [Admin]
@@ -455,15 +486,20 @@ components:
       allOf:
         - { $ref: "#/components/schemas/LoginRequest" }
         - { type: object, required: [password_confirmation], properties: { password_confirmation: { type: string, format: password, minLength: 12 } } }
+    UnlockRequest:
+      type: object
+      required: [unlock_token, password]
+      properties: { unlock_token: { type: string, description: Signed account context; not an authentication credential. }, password: { type: string, format: password }, captcha_token: { type: string, maxLength: 2048 } }
     OtpVerificationRequest:
       type: object
       required: [challenge_token, code]
-      properties: { challenge_token: { type: string }, code: { type: string, pattern: "^([0-9]{6}|[a-f0-9]{10})$" } }
+      properties: { challenge_token: { type: string }, code: { type: string, pattern: "^([0-9]{6}|[a-f0-9]{10})$" }, unlock_token: { type: string }, trust_device: { type: boolean, default: false, description: Opt-in after OTP; ignored for recovery-code login and MFA-required roles. } }
     OtpChallenge:
       type: object
       required: [otp_required, account_unverified, challenge_token, email_hint, expires_in, resend_in]
       properties:
         otp_required: { const: true }
+        trust_device_available: { type: boolean, description: Optional device trust is forbidden for MFA-required roles. }
         account_unverified: { type: boolean }
         challenge_token: { type: string }
         email_hint: { type: string }
@@ -508,7 +544,9 @@ components:
     AuthenticatedUser:
       type: object
       required: [id, email_address, role, permissions]
-      properties: { id: { type: integer }, email_address: { type: string, format: email }, first_name: { type: [string, "null"] }, last_name: { type: [string, "null"] }, role: { type: string }, permissions: { type: array, items: { type: string } }, avatar_url: { type: [string, "null"] } }
+      description: Includes a memory-only unlock_token when returned by session and account-security endpoints.
+      additionalProperties: true
+      properties: { id: { type: integer }, email_address: { type: string, format: email }, first_name: { type: [string, "null"] }, last_name: { type: [string, "null"] }, role: { type: string }, permissions: { type: array, items: { type: string } }, avatar_url: { type: [string, "null"] }, unlock_token: { type: string, description: Memory-only signed context; password and MFA remain required. } }
     Profile:
       type: object
       required: [id, email_address, role, active, created_at]
@@ -544,10 +582,41 @@ components:
       properties: { id: { type: integer }, ip_address: { type: [string, "null"] }, user_agent: { type: [string, "null"] }, current: { type: boolean }, created_at: { type: string, format: date-time }, last_seen_at: { type: string, format: date-time }, expires_at: { type: string, format: date-time } }
     DashboardResponse:
       type: object
-      required: [user, metrics]
+      required: [user, metrics, report]
       properties:
         user: { $ref: "#/components/schemas/AuthenticatedUser" }
         metrics: { type: object, required: [users, active_sessions], properties: { users: { type: integer, minimum: 0 }, active_sessions: { type: integer, minimum: 0 } } }
+        report: { $ref: "#/components/schemas/DailyReport" }
+    DailyReport:
+      type: object
+      required: [range, previous_range, current, previous, comparison]
+      properties:
+        range: { $ref: "#/components/schemas/ReportRange" }
+        previous_range: { $ref: "#/components/schemas/ReportRange" }
+        current: { type: array, maxItems: 366, items: { $ref: "#/components/schemas/ReportPoint" } }
+        previous: { type: array, maxItems: 366, items: { $ref: "#/components/schemas/ReportPoint" } }
+        comparison:
+          type: object
+          required: [current, previous, difference, percentage, trend, favorable]
+          properties:
+            current: { type: integer, minimum: 0 }
+            previous: { type: integer, minimum: 0 }
+            difference: { type: integer }
+            percentage: { type: [number, "null"] }
+            trend: { type: string, enum: [up, down, unchanged] }
+            favorable: { type: [boolean, "null"] }
+    ReportRange:
+      type: object
+      required: [start_date, end_date, days, timezone]
+      properties:
+        start_date: { type: string, format: date }
+        end_date: { type: string, format: date }
+        days: { type: integer, minimum: 1, maximum: 366 }
+        timezone: { type: string, enum: [UTC] }
+    ReportPoint:
+      type: object
+      required: [date, value]
+      properties: { date: { type: string, format: date }, value: { type: integer, minimum: 0 } }
     UserDetailResponse:
       type: object
       required: [user, roles]

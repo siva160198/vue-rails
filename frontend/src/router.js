@@ -8,6 +8,7 @@ import {
 import { t } from "./services/i18n";
 import { adminRouteRecords } from "./config/adminNavigation";
 import { authenticatedLandingPath } from "./services/routeAccess";
+import { lockedAccount } from "./services/sessionLock";
 
 const HomeView = () => import("./views/HomeView.vue");
 const LoginView = () => import("./views/LoginView.vue");
@@ -41,6 +42,7 @@ const router = createRouter({
 });
 
 router.beforeEach(async (to) => {
+  if (lockedAccount.value) return false;
   startNavigationLoading();
   if (to.meta.guestOnly) {
     const user = await loadUser();

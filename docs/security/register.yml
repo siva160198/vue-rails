@@ -1,0 +1,99 @@
+schema_version: 1
+status: draft_template_not_certification
+reviewed_on: "2026-10-07"
+scope_approved_by: null
+security_owner: null
+next_review_on: null
+climate_context:
+  relevance: pending_assessment
+  rationale: null
+  owner: null
+  evidence: []
+assets:
+  - { id: source_ci, classification: internal, owner: null, supplier: null, retention: pending }
+  - { id: profile_database, classification: confidential, owner: null, supplier: null, retention: pending }
+  - { id: authentication_keys, classification: restricted, owner: null, supplier: null, retention: pending }
+  - { id: private_storage_backups, classification: restricted, owner: null, supplier: null, retention: pending }
+  - { id: mail_queue_deployment, classification: confidential, owner: null, supplier: null, retention: pending }
+# Do not treat null scores/owners as accepted risk. Complete in a PRIVATE deployment copy.
+risks:
+  - id: credential_theft
+    asset: authentication_keys
+    threat: Stolen credentials or browser profile used to access an account
+    treatment: MFA, bounded trust, session revocation, monitoring and user notification
+    owner: null
+    likelihood: null
+    impact: null
+    residual_score: null
+    due_on: null
+    acceptance_approved_by: null
+    evidence: []
+  - id: resource_exhaustion
+    asset: mail_queue_deployment
+    threat: Automated traffic exhausts request, database, queue or image-processing capacity
+    treatment: Rate limits, bounded requests, pagination, deadlines and capacity monitoring
+    owner: null
+    likelihood: null
+    impact: null
+    residual_score: null
+    due_on: null
+    acceptance_approved_by: null
+    evidence: []
+  - id: data_loss_or_leak
+    asset: private_storage_backups
+    threat: Exposed backups, lost encryption keys, destructive migration or failed restore
+    treatment: Private encrypted backups, access reviews, key inventory and measured restore drills
+    owner: null
+    likelihood: null
+    impact: null
+    residual_score: null
+    due_on: null
+    acceptance_approved_by: null
+    evidence: []
+# Selected inventory only; NOT a complete ISO Annex A Statement of Applicability.
+control_inventory:
+  - id: identity_access
+    applicability: proposed
+    rationale: Protect private account and administrative operations
+    technical_status: implemented_requires_deployment_verification
+    operational_status: pending
+    owner: null
+    code_evidence: [app/controllers/concerns/authentication.rb, app/models/trusted_device.rb, app/policies]
+    effectiveness_evidence: []
+    next_review_on: null
+  - id: secure_delivery
+    applicability: proposed
+    rationale: Detect vulnerabilities and unauthorized changes
+    technical_status: implemented_requires_deployment_verification
+    operational_status: pending
+    owner: null
+    code_evidence: [config/ci.rb, .github/workflows, docs/openapi.yml]
+    effectiveness_evidence: []
+    next_review_on: null
+  - id: logging_incident_response
+    applicability: proposed
+    rationale: Detect and investigate security events without secret leakage
+    technical_status: collector_and_monitor_templates_require_deployment_and_response_process
+    operational_status: pending
+    owner: null
+    code_evidence: [app/models/audit_log.rb, app/jobs/audit_integrity_job.rb, app/jobs/operations_monitor_job.rb, docs/operations/vector.example.toml, docs/operations.md]
+    effectiveness_evidence: []
+    next_review_on: null
+  - id: backup_continuity
+    applicability: proposed
+    rationale: Recover data and service within approved objectives
+    technical_status: implemented_requires_deployment_verification
+    operational_status: pending
+    owner: null
+    code_evidence: [bin/backup, bin/restore, lib/offsite_backup.rb, bin/production_check, docs/operations.md]
+    effectiveness_evidence: []
+    next_review_on: null
+  - id: organizational_people_physical_supplier
+    applicability: pending_full_standard_and_risk_assessment
+    rationale: Cannot be implemented or evidenced by application source alone
+    technical_status: not_demonstrated_by_repository
+    operational_status: pending
+    owner: null
+    code_evidence: []
+    effectiveness_evidence: []
+    next_review_on: null

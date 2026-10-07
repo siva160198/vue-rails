@@ -1,5 +1,6 @@
 class Session < ApplicationRecord
   belongs_to :user
+  belongs_to :trusted_device, optional: true
   before_validation :set_security_timestamps, on: :create
 
   scope :active, -> { where("expires_at > ? AND last_seen_at > ?", Time.current, Session.idle_timeout.ago) }

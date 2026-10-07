@@ -39,6 +39,14 @@ class ProductionConfiguration
     turnstile_keys = %w[TURNSTILE_SITE_KEY TURNSTILE_SECRET_KEY]
     invalid << "TURNSTILE_CONFIGURATION" if turnstile_keys.any? { |key| environment[key].present? } && turnstile_keys.any? { |key| environment[key].blank? }
     invalid << "TRUSTED_LOGIN_NETWORKS" unless valid_cidrs?(environment["TRUSTED_LOGIN_NETWORKS"])
+    { "PIPELINE_RETENTION_DAYS" => 1..90, "BACKUP_MAX_AGE_HOURS" => 1..168 }.each do |key, range|
+      invalid << key unless integer_in_range?(environment.fetch(key, range.begin.to_s), range)
+    end
+    %w[OPERATIONS_MONITOR_ENABLED AUDIT_INTEGRITY_CHECK_ENABLED].each do |key|
+      invalid << key unless environment.fetch(key, "false").in?(%w[true false])
+    end
+    invalid << "OFFSITE_BACKUP_KMS_KEY_ID" if environment["OFFSITE_BACKUP_BUCKET"].present? && environment["OFFSITE_BACKUP_KMS_KEY_ID"].blank?
+    invalid << "BACKUP_STATUS_FILE" if environment.fetch("OPERATIONS_MONITOR_ENABLED", "false") == "true" && !environment["BACKUP_STATUS_FILE"].to_s.start_with?("/")
 
     problems = []
     problems << "missing: #{missing.join(', ')}" if missing.any?

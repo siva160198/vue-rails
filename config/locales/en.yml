@@ -53,6 +53,7 @@ en:
     jobs:
       failure_redacted: "Error details are hidden. Use internal logs with the request ID for investigation."
     errors:
+      invalid_report_range: "Choose a valid date range of at most 366 days, not extending beyond today."
       payload_too_large: "The request exceeds the allowed size."
       avatar_missing: "Choose a profile photo first."
       avatar_too_large: "The source photo must be 10 MB or smaller."
@@ -80,6 +81,7 @@ en:
       otp_locked: "Too many attempts. Please sign in again."
       otp_resend_too_soon: "Wait 60 seconds before resending the OTP."
       invalid_otp_challenge: "The OTP session is invalid or has expired. Please sign in again."
+      invalid_unlock_context: "This unlock request is invalid or has expired. Return to sign in."
       invalid_password_reset_token: "The reset link is invalid or has expired."
       last_active_admin_required: "The last active administrator cannot be disabled or demoted."
       current_password_invalid: "The current password is invalid."

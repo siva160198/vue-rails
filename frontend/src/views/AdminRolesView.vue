@@ -362,6 +362,7 @@ async function finishSecurityAction(token) {
       :title="t('roles.edit_title')"
       :hint="editingRole ? t('roles.edit_hint', { key: editingRole.key }) : ''"
       :loading="modalLoading"
+      :dirty="Boolean(hasEditChanges)"
       :close-disabled="Boolean(editingRole && savingRoleIds.has(editingRole.id))"
       size="lg"
       @close="closeEditModal"
@@ -406,12 +407,12 @@ async function finishSecurityAction(token) {
               />
             </fieldset>
       </form>
-      <template #footer>
+      <template #footer="{ requestClose }">
             <button
               type="button"
               :disabled="savingRoleIds.has(editingRole.id)"
               class="rounded-lg border border-gray-200 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-700 dark:text-gray-300 dark:hover:bg-gray-800"
-              @click="closeEditModal"
+              @click="requestClose"
             >
               {{ t("common.cancel") }}
             </button>
@@ -427,6 +428,6 @@ async function finishSecurityAction(token) {
             </AsyncButton>
       </template>
     </AppModal>
-    <AppModal :open="Boolean(pendingSecurityAction)" :title="t('security.additional_verification')" size="md" @close="pendingSecurityAction = null"><StepUpPrompt v-if="pendingSecurityAction" purpose="admin_role_change" @verified="finishSecurityAction" @cancel="pendingSecurityAction = null" /></AppModal>
+    <AppModal :open="Boolean(pendingSecurityAction)" :close-disabled="Boolean(pendingSecurityAction && (savingRoleIds.has(pendingSecurityAction.role?.id) || deletingRoleIds.has(pendingSecurityAction.role?.id) || creating))" :title="t('security.additional_verification')" size="md" @close="pendingSecurityAction = null"><StepUpPrompt v-if="pendingSecurityAction" purpose="admin_role_change" @verified="finishSecurityAction" @cancel="pendingSecurityAction = null" /></AppModal>
   </AdminLayout>
 </template>

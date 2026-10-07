@@ -13,6 +13,10 @@ module Authentication
   end
 
   private
+    def session_unlock_token(user)
+      Rails.application.message_verifier(:session_unlock).generate({ user_id: user.id, authentication_version: user.authentication_version }, expires_in: 24.hours)
+    end
+
     def authenticated?
       resume_session
     end
@@ -28,7 +32,9 @@ module Authentication
     def find_session_by_cookie
       session = Session.includes(:user).find_by(id: cookies.signed[:session_id]) if cookies.signed[:session_id]
       return unless session
-      if session.expired? || !session.user.active?
+      binding_invalid = session.trusted_device_id && !session.trusted_device&.valid_binding?(user: session.user, binding: cookies[:trusted_device_binding], user_agent: request.user_agent)
+      if session.expired? || !session.user.active? || binding_invalid
+        AuditLog.record!(action: "session.binding_rejected", actor: session.user, auditable: session.user, request: request) if binding_invalid
         AuditLog.record!(action: "session.expired", actor: session.user, auditable: session.user, request: request) if session.expired?
         session.destroy!
         cookies.delete(:session_id)
@@ -52,10 +58,10 @@ module Authentication
       session.delete(:return_to_after_authenticating) || root_url
     end
 
-    def start_new_session_for(user, notify: true)
+    def start_new_session_for(user, notify: true, trusted_device: nil)
       enforce_session_limit_for(user)
       now = Time.current
-      user.sessions.create!(user_agent: request.user_agent, ip_address: request.remote_ip, last_seen_at: now, expires_at: Session.absolute_lifetime_for(user).from_now).tap do |session|
+      user.sessions.create!(trusted_device: trusted_device, user_agent: request.user_agent, ip_address: request.remote_ip, last_seen_at: now, expires_at: Session.absolute_lifetime_for(user).from_now).tap do |session|
         Current.session = session
         cookies.signed.permanent[:session_id] = {
           value: session.id,

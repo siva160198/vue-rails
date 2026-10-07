@@ -10,6 +10,18 @@
 #     schedule: at 5am every day
 
 production:
+  monitor_operational_health:
+    class: OperationsMonitorJob
+    queue: maintenance
+    schedule: every 5 minutes
+  verify_audit_integrity:
+    class: AuditIntegrityJob
+    queue: maintenance
+    schedule: every day at 3:30am
+  maintain_optional_data_pipelines:
+    class: PipelineMaintenanceJob
+    queue: maintenance
+    schedule: every 5 minutes
   clear_solid_queue_finished_jobs:
     command: "SolidQueue::Job.clear_finished_in_batches(sleep_between_batches: 0.3)"
     schedule: every hour at minute 12
